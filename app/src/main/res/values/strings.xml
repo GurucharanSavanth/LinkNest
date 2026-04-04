@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">LinkNest</string>
+    <string name="widget_pinned_title">Pinned Websites</string>
+    <string name="widget_pinned_subtitle">Jump into your pinned LinkNest links</string>
+    <string name="widget_pinned_empty">No pinned websites yet.</string>
+    <string name="widget_recent_title">Recent Websites</string>
+    <string name="widget_recent_subtitle">Resume the links you opened last</string>
+    <string name="widget_recent_empty">No recently opened websites yet.</string>
+    <string name="widget_category_title">Category Snapshot</string>
+    <string name="widget_category_subtitle">Open the active category from your home screen</string>
+    <string name="widget_category_empty">No category links available yet.</string>
+    <string name="widget_quick_add_title">Quick Add</string>
+    <string name="widget_quick_add_body">Open LinkNest and capture a new website.</string>
+    <string name="shortcut_add_short">Add Website</string>
+    <string name="shortcut_add_long">Capture a new website in LinkNest</string>
+    <string name="shortcut_search_short">Search</string>
+    <string name="shortcut_search_long">Search your LinkNest library</string>
+</resources>

@@ -728,14 +728,6 @@ private fun SaveFilterDialog(
     )
 }
 
-private val SearchSmartCollection.label: String
-    get() = when (this) {
-        SearchSmartCollection.PINNED -> "Pinned"
-        SearchSmartCollection.RECENT -> "Recent"
-        SearchSmartCollection.DUPLICATES -> "Duplicates"
-        SearchSmartCollection.NEEDS_ATTENTION -> "Needs Attention"
-    }
-
 private val HealthStatus.label: String
     get() = when (this) {
         HealthStatus.OK -> "Good"

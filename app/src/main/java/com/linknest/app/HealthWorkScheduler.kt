@@ -15,7 +15,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 
 @Singleton
 class HealthWorkScheduler @Inject constructor(
-    @ApplicationContext private val appContext: Context,
+    @param:ApplicationContext private val appContext: Context,
 ) {
     fun sync(enabled: Boolean) {
         if (enabled) {

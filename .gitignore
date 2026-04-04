@@ -1,10 +1,12 @@
 # Gradle and Kotlin
 .gradle/
+.gradle_user/
 .kotlin/
 build/
 **/build/
 
 # Android Studio / IntelliJ
+.android/
 .idea/
 *.iml
 captures/
@@ -24,6 +26,7 @@ keystore.properties
 *.aab
 *.ap_
 output.json
+app/release/
 
 # OS files
 .DS_Store

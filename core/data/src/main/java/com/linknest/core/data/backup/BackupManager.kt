@@ -27,7 +27,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 class BackupManager @Inject constructor(
-    @ApplicationContext private val appContext: Context,
+    @param:ApplicationContext private val appContext: Context,
     @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
     private val backupCryptoManager: BackupCryptoManager,
 ) {

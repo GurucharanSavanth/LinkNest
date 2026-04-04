@@ -14,7 +14,7 @@ import javax.inject.Singleton
 
 @Singleton
 class ShortcutPublisher @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
 ) {
     fun publishDynamicShortcuts() {
         val shortcutManager = context.getSystemService(ShortcutManager::class.java) ?: return

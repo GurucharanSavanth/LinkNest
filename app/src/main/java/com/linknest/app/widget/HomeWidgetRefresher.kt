@@ -10,7 +10,7 @@ import javax.inject.Singleton
 
 @Singleton
 class HomeWidgetRefresher @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
 ) {
     fun refreshAll() {
         val appWidgetManager = AppWidgetManager.getInstance(context)

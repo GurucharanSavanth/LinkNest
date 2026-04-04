@@ -41,7 +41,7 @@ import kotlin.coroutines.resumeWithException
 
 @Singleton
 class AppSearchBackedSearchIndexRepository @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val websiteDao: WebsiteDao,
     private val categoryDao: CategoryDao,
     private val tagDao: TagDao,

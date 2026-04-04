@@ -222,7 +222,7 @@ class RecordIntegrityEventUseCase @Inject constructor(
 class GetIntegrityOverviewUseCase @Inject constructor(
     private val websiteRepository: WebsiteRepository,
     private val integrityEventRepository: IntegrityEventRepository,
-    @ApplicationContext private val appContext: Context,
+    @param:ApplicationContext private val appContext: Context,
     @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) {
     suspend operator fun invoke(): IntegrityOverview = withContext(ioDispatcher) {

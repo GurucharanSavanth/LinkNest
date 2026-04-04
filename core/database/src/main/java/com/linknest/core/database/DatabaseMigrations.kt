@@ -5,7 +5,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 object DatabaseMigrations {
     val MIGRATION_1_2: Migration = object : Migration(1, 2) {
-        override fun migrate(database: SupportSQLiteDatabase) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            val database = db
             database.execSQL(
                 """
                 ALTER TABLE website_entries
@@ -95,7 +96,8 @@ object DatabaseMigrations {
     }
 
     val MIGRATION_2_3: Migration = object : Migration(2, 3) {
-        override fun migrate(database: SupportSQLiteDatabase) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            val database = db
             database.execSQL(
                 """
                 CREATE TABLE IF NOT EXISTS website_entries_new (
@@ -277,7 +279,8 @@ object DatabaseMigrations {
     }
 
     val MIGRATION_3_4: Migration = object : Migration(3, 4) {
-        override fun migrate(database: SupportSQLiteDatabase) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            val database = db
             database.execSQL(
                 "CREATE INDEX IF NOT EXISTS index_website_entries_category_id_sort_order ON website_entries(category_id, sort_order)",
             )
@@ -300,7 +303,8 @@ object DatabaseMigrations {
     }
 
     val MIGRATION_4_5: Migration = object : Migration(4, 5) {
-        override fun migrate(database: SupportSQLiteDatabase) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            val database = db
             database.execSQL(
                 """
                 UPDATE website_entries
@@ -315,7 +319,8 @@ object DatabaseMigrations {
     }
 
     val MIGRATION_5_6: Migration = object : Migration(5, 6) {
-        override fun migrate(database: SupportSQLiteDatabase) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            val database = db
             database.execSQL(
                 """
                 CREATE TABLE IF NOT EXISTS recent_queries (

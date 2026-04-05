@@ -367,48 +367,41 @@ private fun DashboardHeader(
     onOpenSettings: () -> Unit,
 ) {
     GlassPanel(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    painter = painterResource(id = DesignSystemR.drawable.ic_linknest_mark),
-                    contentDescription = "LinkNest",
-                    tint = Color.Unspecified,
-                    modifier = Modifier.size(28.dp),
-                )
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "LinkNest",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = "Search, organize, and open fast",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            LayoutToggle(
-                layoutMode = layoutMode,
-                onLayoutModeChanged = onLayoutModeChanged,
-            )
-            IconButton(onClick = onOpenSearch) {
-                Icon(Icons.AutoMirrored.Rounded.ManageSearch, contentDescription = "Open advanced search")
-            }
-            IconButton(onClick = onOpenSettings) {
-                Icon(Icons.Rounded.Settings, contentDescription = "Settings")
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            if (maxWidth < 360.dp) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    DashboardBranding()
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        LayoutToggle(
+                            layoutMode = layoutMode,
+                            onLayoutModeChanged = onLayoutModeChanged,
+                        )
+                        DashboardHeaderActions(
+                            onOpenSearch = onOpenSearch,
+                            onOpenSettings = onOpenSettings,
+                        )
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    DashboardBranding(modifier = Modifier.weight(1f))
+                    LayoutToggle(
+                        layoutMode = layoutMode,
+                        onLayoutModeChanged = onLayoutModeChanged,
+                    )
+                    DashboardHeaderActions(
+                        onOpenSearch = onOpenSearch,
+                        onOpenSettings = onOpenSettings,
+                    )
+                }
             }
         }
         Spacer(modifier = Modifier.height(14.dp))
@@ -435,6 +428,64 @@ private fun DashboardHeader(
                 unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f),
             ),
         )
+    }
+}
+
+@Composable
+private fun DashboardBranding(modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(id = DesignSystemR.drawable.ic_linknest_mark),
+                contentDescription = "LinkNest",
+                tint = Color.Unspecified,
+                modifier = Modifier.size(28.dp),
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "LinkNest",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = "Search, organize, and open fast",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DashboardHeaderActions(
+    onOpenSearch: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onOpenSearch) {
+            Icon(Icons.AutoMirrored.Rounded.ManageSearch, contentDescription = "Open advanced search")
+        }
+        IconButton(onClick = onOpenSettings) {
+            Icon(Icons.Rounded.Settings, contentDescription = "Settings")
+        }
     }
 }
 

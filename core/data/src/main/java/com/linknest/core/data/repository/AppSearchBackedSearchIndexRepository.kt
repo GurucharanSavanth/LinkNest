@@ -1,6 +1,7 @@
 package com.linknest.core.data.repository
 
 import android.content.Context
+import android.util.Log
 import androidx.appsearch.app.AppSearchBatchResult
 import androidx.appsearch.app.AppSearchSchema
 import androidx.appsearch.app.AppSearchSession
@@ -59,8 +60,14 @@ class AppSearchBackedSearchIndexRepository @Inject constructor(
         if (hasWarmedIndex) return@withContext
 
         runCatching {
-            val session = requireSession()
+            val hadExistingStorage = appSearchStorageHasFiles()
+            var session = requireSession()
             if (session.getNamespacesAsync().await().isEmpty()) {
+                if (hadExistingStorage) {
+                    Log.w(TAG, "AppSearch opened with existing on-disk files but no namespaces. Resetting local index.")
+                    resetSearchStorage()
+                    session = requireSession()
+                }
                 rebuildAll(session)
             }
             hasWarmedIndex = true
@@ -314,6 +321,20 @@ class AppSearchBackedSearchIndexRepository @Inject constructor(
     private suspend fun requireSession(): AppSearchSession {
         searchSession?.let { return it }
 
+        val created = runCatching {
+            createSession()
+        }.recoverCatching { throwable ->
+            if (throwable is CancellationException) throw throwable
+            Log.w(TAG, "AppSearch session creation failed. Resetting local index and retrying.", throwable)
+            resetSearchStorage()
+            createSession()
+        }.getOrThrow()
+
+        searchSession = created
+        return created
+    }
+
+    private suspend fun createSession(): AppSearchSession {
         val created = LocalStorage.createSearchSessionAsync(
             LocalStorage.SearchContext.Builder(context, APP_SEARCH_DATABASE).build(),
         ).await()
@@ -329,9 +350,19 @@ class AppSearchBackedSearchIndexRepository @Inject constructor(
                 .setForceOverride(false)
                 .build(),
         ).await()
-
-        searchSession = created
         return created
+    }
+
+    private fun appSearchStorageHasFiles(): Boolean {
+        val storageDir = context.filesDir.resolve(APP_SEARCH_STORAGE_DIRECTORY)
+        return storageDir.exists() && storageDir.walkTopDown().any { file -> file.isFile }
+    }
+
+    private fun resetSearchStorage() {
+        runCatching { searchSession?.close() }
+        searchSession = null
+        hasWarmedIndex = false
+        context.filesDir.resolve(APP_SEARCH_STORAGE_DIRECTORY).deleteRecursively()
     }
 
     private suspend fun putDocuments(
@@ -707,7 +738,9 @@ class AppSearchBackedSearchIndexRepository @Inject constructor(
     }
 
     private companion object {
+        const val TAG = "LinkNestAppSearch"
         const val APP_SEARCH_DATABASE = "linknest-search"
+        const val APP_SEARCH_STORAGE_DIRECTORY = "appsearch"
         const val WEBSITE_NAMESPACE = "websites"
         const val AUX_NAMESPACE = "aux"
         const val WEBSITE_SCHEMA = "website_document"

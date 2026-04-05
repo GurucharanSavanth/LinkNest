@@ -3,7 +3,6 @@ package com.linknest.app.startup
 import com.linknest.app.HealthWorkScheduler
 import com.linknest.app.shortcut.ShortcutPublisher
 import com.linknest.core.data.usecase.ObserveUserPreferencesUseCase
-import com.linknest.core.data.usecase.WarmSearchIndexUseCase
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
@@ -18,14 +17,10 @@ import kotlinx.coroutines.launch
 class DeferredStartupCoordinator @Inject constructor(
     private val observeUserPreferencesUseCase: ObserveUserPreferencesUseCase,
     private val healthWorkScheduler: HealthWorkScheduler,
-    private val warmSearchIndexUseCase: WarmSearchIndexUseCase,
     private val shortcutPublisher: ShortcutPublisher,
 ) {
     fun start(scope: CoroutineScope) {
         scope.launch(Dispatchers.Default) {
-            delay(DEFERRED_INIT_DELAY_MILLIS)
-            warmSearchIndexUseCase()
-            shortcutPublisher.publishDynamicShortcuts()
             observeUserPreferencesUseCase()
                 .map { preferences -> preferences.backgroundHealthChecksEnabled }
                 .distinctUntilChanged()
@@ -33,9 +28,13 @@ class DeferredStartupCoordinator @Inject constructor(
                     healthWorkScheduler.sync(backgroundHealthChecksEnabled)
                 }
         }
+        scope.launch(Dispatchers.Default) {
+            delay(SHORTCUT_INIT_DELAY_MILLIS)
+            runCatching { shortcutPublisher.publishDynamicShortcuts() }
+        }
     }
 
     private companion object {
-        const val DEFERRED_INIT_DELAY_MILLIS = 650L
+        const val SHORTCUT_INIT_DELAY_MILLIS = 1_500L
     }
 }

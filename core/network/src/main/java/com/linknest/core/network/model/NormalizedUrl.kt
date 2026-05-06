@@ -7,4 +7,5 @@ data class NormalizedUrl(
     val domain: String,
     val wasInsecureSchemeUpgraded: Boolean = false,
     val isInternationalizedHost: Boolean = false,
+    val hasUnsupportedScheme: Boolean = false,
 )

@@ -15,10 +15,10 @@ It is built as a modular offline-first project with Jetpack Compose, Room, DataS
 - Track integrity metrics such as duplicate entries, unsorted links, cache size, and database size.
 - Publish shortcuts and refresh app widgets for quick access.
 - Accept shared content into the app through a dedicated share-entry flow.
+- Launch directly to the dashboard while background health monitoring runs separately when enabled.
 
 ## Main Screens
 
-- Launch Gate
 - Dashboard
 - Add / Edit Website
 - Search & Collections
@@ -102,9 +102,14 @@ To produce a release build:
 ```powershell
 .\gradlew.bat test
 .\gradlew.bat lintDebug
+.\gradlew.bat :core:network:testDebugUnitTest
 .\gradlew.bat :app:assembleDebug
 .\gradlew.bat :app:assembleRelease
 ```
+
+## Engineering Notes
+
+See `AGENTS.md` for repository conventions and `docs/architecture/current-state.md` for current module, screen, and data flow. Audit and validation artifacts live under `docs/audit` and `docs/testing`.
 
 ## Troubleshooting
 

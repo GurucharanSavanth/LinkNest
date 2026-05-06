@@ -10,21 +10,14 @@ import javax.inject.Inject
 class ValidateUrlAction @Inject constructor() : AppAction<NormalizedUrl, NormalizedUrl> {
 
     companion object {
-        private val ALLOWED_SCHEMES = setOf("http", "https")
+        private const val WARNING_URL_LENGTH = 2048
     }
 
     override suspend fun invoke(input: NormalizedUrl): ActionResult<NormalizedUrl> = when {
-        Uri.parse(input.normalizedUrl).scheme?.lowercase() !in ALLOWED_SCHEMES -> ActionResult.Failure(
+        Uri.parse(input.normalizedUrl).scheme.isNullOrBlank() -> ActionResult.Failure(
             issue = ActionIssue(
-                code = "URL_SCHEME_NOT_ALLOWED",
-                message = "Only HTTP and HTTPS URLs are supported.",
-            ),
-        )
-
-        input.normalizedUrl.length > 2048 -> ActionResult.Failure(
-            issue = ActionIssue(
-                code = "URL_TOO_LONG",
-                message = "URL exceeds the supported length.",
+                code = "URL_SCHEME_REQUIRED",
+                message = "URL must include a scheme.",
             ),
         )
 
@@ -35,8 +28,19 @@ class ValidateUrlAction @Inject constructor() : AppAction<NormalizedUrl, Normali
             ),
         )
 
-        input.wasInsecureSchemeUpgraded || input.isInternationalizedHost -> {
+        input.normalizedUrl.length > WARNING_URL_LENGTH ||
+            input.wasInsecureSchemeUpgraded ||
+            input.isInternationalizedHost ||
+            input.hasUnsupportedScheme -> {
             val issues = buildList {
+                if (input.normalizedUrl.length > WARNING_URL_LENGTH) {
+                    add(
+                        ActionIssue(
+                            code = "URL_LENGTH_WARNING",
+                            message = "URL is unusually long and may not work in every app.",
+                        ),
+                    )
+                }
                 if (input.wasInsecureSchemeUpgraded) {
                     add(
                         ActionIssue(
@@ -50,6 +54,14 @@ class ValidateUrlAction @Inject constructor() : AppAction<NormalizedUrl, Normali
                         ActionIssue(
                             code = "IDN_HOST_NORMALIZED",
                             message = "Internationalized domain was normalized to a punycode-safe host.",
+                        ),
+                    )
+                }
+                if (input.hasUnsupportedScheme) {
+                    add(
+                        ActionIssue(
+                            code = "URL_SCHEME_UNSUPPORTED_FOR_AUTOMATION",
+                            message = "This link can be saved, but LinkNest will not fetch metadata or run health checks for its scheme.",
                         ),
                     )
                 }

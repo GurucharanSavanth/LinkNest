@@ -9,10 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.linknest.app.launch.LAUNCH_GATE_ROUTE
-import com.linknest.app.launch.LaunchGateRoute
 import com.linknest.feature.addedit.addEditScreen
 import com.linknest.feature.addedit.navigateToAddEdit
 import com.linknest.feature.dashboard.DASHBOARD_ROUTE
@@ -33,21 +30,9 @@ fun LinkNestNavHost(
 
     NavHost(
         navController = navController,
-        startDestination = LAUNCH_GATE_ROUTE,
+        startDestination = DASHBOARD_ROUTE,
         modifier = modifier,
     ) {
-        composable(route = LAUNCH_GATE_ROUTE) {
-            LaunchGateRoute(
-                onOpenDashboard = {
-                    navController.navigate(DASHBOARD_ROUTE) {
-                        popUpTo(LAUNCH_GATE_ROUTE) {
-                            inclusive = true
-                        }
-                        launchSingleTop = true
-                    }
-                },
-            )
-        }
         dashboardScreen(
             onAddWebsite = { navController.navigateToAddEdit() },
             onEditWebsite = { websiteId -> navController.navigateToAddEdit(websiteId = websiteId) },

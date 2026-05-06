@@ -18,6 +18,11 @@ class UrlMetadataFetcher @Inject constructor(
 ) {
     suspend fun fetch(normalizedUrl: NormalizedUrl): MetadataResult = withContext(ioDispatcher) {
         try {
+            val scheme = URI(normalizedUrl.normalizedUrl).scheme?.lowercase().orEmpty()
+            if (scheme != "http" && scheme != "https") {
+                return@withContext generatedMetadata(normalizedUrl)
+            }
+
             val document = Jsoup.connect(normalizedUrl.normalizedUrl)
                 .userAgent(USER_AGENT)
                 .timeout(TIMEOUT_MILLIS)
@@ -57,17 +62,19 @@ class UrlMetadataFetcher @Inject constructor(
         } catch (cancellationException: CancellationException) {
             throw cancellationException
         } catch (_: Throwable) {
-            MetadataResult(
-                title = normalizedUrl.domain,
-                canonicalUrl = null,
-                finalUrl = normalizedUrl.normalizedUrl,
-                domain = normalizedUrl.domain,
-                ogImageUrl = null,
-                faviconUrl = null,
-                chosenIconSource = IconSource.GENERATED,
-            )
+            generatedMetadata(normalizedUrl)
         }
     }
+
+    private fun generatedMetadata(normalizedUrl: NormalizedUrl): MetadataResult = MetadataResult(
+        title = normalizedUrl.domain,
+        canonicalUrl = null,
+        finalUrl = normalizedUrl.normalizedUrl,
+        domain = normalizedUrl.domain,
+        ogImageUrl = null,
+        faviconUrl = null,
+        chosenIconSource = IconSource.GENERATED,
+    )
 
     private fun Document.ogTitleOrPageTitle(defaultTitle: String): String {
         val ogTitle = select("meta[property=og:title],meta[name=twitter:title]")

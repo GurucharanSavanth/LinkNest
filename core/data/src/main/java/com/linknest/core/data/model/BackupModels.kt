@@ -123,7 +123,7 @@ data class BackupPreferences(
 
 data class BackupArtifact(
     val fileName: String,
-    val filePath: String,
+    val filePath: String?,
     val json: String,
     val isEncrypted: Boolean,
     val checksum: String,

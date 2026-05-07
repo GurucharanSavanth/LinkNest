@@ -1,5 +1,9 @@
 package com.linknest.core.model
 
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.Stable
+
+@Immutable
 data class UserPreferences(
     val layoutMode: LayoutMode = LayoutMode.LIST,
     val tileSizeDp: Int = DEFAULT_TILE_SIZE_DP,
@@ -19,6 +23,7 @@ data class UserPreferences(
         }
 }
 
+@Immutable
 data class SelectableCategory(
     val id: Long,
     val name: String,
@@ -35,12 +40,14 @@ data class CategorySuggestion(
     val score: Int,
 )
 
+@Immutable
 data class TagModel(
     val id: Long,
     val name: String,
     val usageCount: Int = 0,
 )
 
+@Immutable
 data class WebsiteListItem(
     val id: Long,
     val categoryId: Long,
@@ -83,6 +90,7 @@ data class WebsiteListItem(
         }
 }
 
+@Immutable
 data class DashboardCategory(
     val id: Long,
     val name: String,
@@ -97,12 +105,14 @@ data class DashboardCategory(
         get() = websites.size
 }
 
+@Immutable
 data class DashboardSmartSection(
     val id: String,
     val title: String,
     val websites: List<WebsiteListItem>,
 )
 
+@Stable
 data class DashboardModel(
     val categories: List<DashboardCategory> = emptyList(),
     val smartSections: List<DashboardSmartSection> = emptyList(),
@@ -120,6 +130,7 @@ data class DashboardModel(
         get() = smartSections.firstOrNull { it.id == "most_used" }
 }
 
+@Immutable
 data class MetadataPreview(
     val title: String,
     val normalizedUrl: String,
@@ -138,6 +149,7 @@ data class MetadataPreview(
         }
 }
 
+@Immutable
 data class SearchResultItem(
     val websiteId: Long,
     val categoryId: Long,
@@ -180,6 +192,7 @@ data class RecentQuery(
     val lastUsedAt: Long,
 )
 
+@Immutable
 data class SearchSuggestion(
     val id: String,
     val type: SearchSuggestionType,
@@ -227,6 +240,7 @@ enum class AddWebsitePhase {
     SUCCESS,
 }
 
+@Immutable
 data class HealthReportItem(
     val websiteId: Long,
     val title: String,

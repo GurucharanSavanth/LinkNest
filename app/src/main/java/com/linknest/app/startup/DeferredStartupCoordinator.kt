@@ -2,6 +2,7 @@ package com.linknest.app.startup
 
 import com.linknest.app.HealthWorkScheduler
 import com.linknest.app.shortcut.ShortcutPublisher
+import com.linknest.core.data.repository.SearchIndexRepository
 import com.linknest.core.data.usecase.ObserveUserPreferencesUseCase
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -18,6 +19,7 @@ class DeferredStartupCoordinator @Inject constructor(
     private val observeUserPreferencesUseCase: ObserveUserPreferencesUseCase,
     private val healthWorkScheduler: HealthWorkScheduler,
     private val shortcutPublisher: ShortcutPublisher,
+    private val searchIndexRepository: SearchIndexRepository,
 ) {
     fun start(scope: CoroutineScope) {
         scope.launch(Dispatchers.Default) {
@@ -32,9 +34,14 @@ class DeferredStartupCoordinator @Inject constructor(
             delay(SHORTCUT_INIT_DELAY_MILLIS)
             runCatching { shortcutPublisher.publishDynamicShortcuts() }
         }
+        scope.launch(Dispatchers.IO) {
+            delay(SEARCH_WARMUP_DELAY_MILLIS)
+            runCatching { searchIndexRepository.warmIndex() }
+        }
     }
 
     private companion object {
         const val SHORTCUT_INIT_DELAY_MILLIS = 1_500L
+        const val SEARCH_WARMUP_DELAY_MILLIS = 2_000L
     }
 }

@@ -1,6 +1,5 @@
 package com.linknest.core.data.backup
 
-import android.content.Context
 import com.linknest.core.common.coroutine.IoDispatcher
 import com.linknest.core.data.model.BackupArtifact
 import com.linknest.core.data.model.BackupCategory
@@ -14,17 +13,14 @@ import com.linknest.core.data.model.BackupTag
 import com.linknest.core.data.model.BackupWebsite
 import com.linknest.core.data.model.BackupWebsiteTag
 import com.linknest.core.data.model.DomainCategoryMapping
-import com.linknest.core.data.storage.LinkNestStorage
 import com.linknest.core.model.FollowUpStatus
 import com.linknest.core.model.HealthStatus
 import com.linknest.core.model.IconSource
 import com.linknest.core.model.IconType
 import com.linknest.core.model.IntegrityEventType
 import com.linknest.core.model.WebsitePriority
-import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
-import java.io.File
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.util.Base64
@@ -37,7 +33,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 class BackupManager @Inject constructor(
-    @param:ApplicationContext private val appContext: Context?,
     @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
     private val backupCryptoManager: BackupCryptoManager,
 ) {
@@ -51,14 +46,11 @@ class BackupManager @Inject constructor(
         val checksum = compressed.sha256()
         val envelope = buildEnvelope(snapshot, compressed, checksum, encrypted).toString(2)
         val output = if (encrypted) backupCryptoManager.encrypt(envelope) else envelope
-        val exportDir = LinkNestStorage.backupDirectory(requireNotNull(appContext) { "Backup export requires an application context." }).apply { mkdirs() }
         val fileName = "linknest-backup-${snapshot.exportedAt}.${if (encrypted) "lnen" else "json"}"
-        val file = File(exportDir, fileName)
-        file.outputStream().bufferedWriter().use { writer -> writer.write(output) }
-        parse(file.readText())
+        parse(output)
         BackupArtifact(
             fileName = fileName,
-            filePath = file.absolutePath,
+            filePath = null,
             json = output,
             isEncrypted = encrypted,
             checksum = checksum,

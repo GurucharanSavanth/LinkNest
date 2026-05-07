@@ -360,7 +360,7 @@ private fun AddEditScreen(
                         if (uiState.tagDraft.isNotBlank() &&
                             uiState.selectedTags.none { it.equals(uiState.tagDraft.trim(), ignoreCase = true) }
                         ) {
-TextButton(onClick = onCreateTag) {
+                        TextButton(onClick = onCreateTag) {
                                 Icon(Icons.Rounded.Add, contentDescription = "Create tag")
                                 Spacer(modifier = Modifier.size(8.dp))
                                 Text("Create tag \"${uiState.tagDraft.trim()}\"")
@@ -494,7 +494,7 @@ private fun WebsiteMetadataCard(
                 FilterChip(
                     selected = uiState.priority == priority,
                     onClick = { onPrioritySelected(priority) },
-                    label = { Text(priority.displayName()) },
+                    label = { Text(priority.displayName) },
                     leadingIcon = {
                         if (priority == WebsitePriority.CRITICAL) {
                             Icon(Icons.Rounded.PriorityHigh, contentDescription = null)
@@ -511,7 +511,7 @@ private fun WebsiteMetadataCard(
                 FilterChip(
                     selected = uiState.followUpStatus == status,
                     onClick = { onFollowUpStatusSelected(status) },
-                    label = { Text(status.displayName()) },
+                    label = { Text(status.displayName) },
                 )
             }
         }
@@ -618,7 +618,7 @@ private fun DuplicateReviewCard(
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(match.title, fontWeight = FontWeight.SemiBold)
                     Text(match.normalizedUrl, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("${match.categoryName} · ${match.type.displayName()}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    Text("${match.categoryName} · ${match.type.displayName}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
@@ -627,7 +627,7 @@ private fun DuplicateReviewCard(
             DuplicateDecision.entries.forEach { decision ->
                 AssistChip(
                     onClick = { onResolveDuplicate(decision) },
-                    label = { Text(decision.displayName()) },
+                    label = { Text(decision.displayName) },
                 )
             }
         }
@@ -818,33 +818,3 @@ private fun MetadataPreviewCard(
     }
 }
 
-private fun WebsitePriority.displayName(): String = when (this) {
-    WebsitePriority.LOW -> "Low"
-    WebsitePriority.NORMAL -> "Normal"
-    WebsitePriority.HIGH -> "High"
-    WebsitePriority.CRITICAL -> "Critical"
-}
-
-private fun FollowUpStatus.displayName(): String = when (this) {
-    FollowUpStatus.NONE -> "None"
-    FollowUpStatus.REVIEW -> "Needs review"
-    FollowUpStatus.IN_PROGRESS -> "In progress"
-    FollowUpStatus.WAITING -> "Waiting"
-    FollowUpStatus.DONE -> "Done"
-}
-
-private fun DuplicateDecision.displayName(): String = when (this) {
-    DuplicateDecision.KEEP_BOTH -> "Keep both"
-    DuplicateDecision.CANCEL_SAVE -> "Cancel save"
-    DuplicateDecision.REPLACE_EXISTING -> "Replace existing"
-    DuplicateDecision.MERGE_METADATA -> "Merge metadata"
-    DuplicateDecision.MOVE_EXISTING -> "Move existing"
-}
-
-private fun DuplicateMatchType.displayName(): String = when (this) {
-    DuplicateMatchType.EXACT_URL -> "Exact URL"
-    DuplicateMatchType.NORMALIZED_URL -> "Normalized URL"
-    DuplicateMatchType.REDIRECTED_URL -> "Redirected target"
-    DuplicateMatchType.EFFECTIVE_DESTINATION -> "Effective destination"
-    DuplicateMatchType.TITLE_DOMAIN -> "Title and domain"
-}

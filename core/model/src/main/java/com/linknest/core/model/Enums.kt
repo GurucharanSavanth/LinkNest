@@ -36,14 +36,33 @@ enum class HealthStatus {
     DNS_FAILED,
     SSL_ISSUE,
     DEAD,
-    TIMEOUT,
+    TIMEOUT;
+
+    val displayName: String get() = when (this) {
+        UNKNOWN -> "Unknown"
+        OK -> "Good"
+        LOGIN_REQUIRED -> "Login required"
+        BLOCKED -> "Blocked"
+        REDIRECTED -> "Redirected"
+        DNS_FAILED -> "DNS failed"
+        SSL_ISSUE -> "TLS issue"
+        DEAD -> "Dead"
+        TIMEOUT -> "Timeout"
+    }
 }
 
 enum class WebsitePriority {
     LOW,
     NORMAL,
     HIGH,
-    CRITICAL,
+    CRITICAL;
+
+    val displayName: String get() = when (this) {
+        LOW -> "Low"
+        NORMAL -> "Normal"
+        HIGH -> "High"
+        CRITICAL -> "Critical"
+    }
 }
 
 enum class FollowUpStatus {
@@ -51,7 +70,15 @@ enum class FollowUpStatus {
     REVIEW,
     IN_PROGRESS,
     WAITING,
-    DONE,
+    DONE;
+
+    val displayName: String get() = when (this) {
+        NONE -> "None"
+        REVIEW -> "Needs review"
+        IN_PROGRESS -> "In progress"
+        WAITING -> "Waiting"
+        DONE -> "Done"
+    }
 }
 
 enum class DuplicateMatchType {
@@ -59,7 +86,15 @@ enum class DuplicateMatchType {
     NORMALIZED_URL,
     REDIRECTED_URL,
     EFFECTIVE_DESTINATION,
-    TITLE_DOMAIN,
+    TITLE_DOMAIN;
+
+    val displayName: String get() = when (this) {
+        EXACT_URL -> "Exact URL"
+        NORMALIZED_URL -> "Normalized URL"
+        REDIRECTED_URL -> "Redirected target"
+        EFFECTIVE_DESTINATION -> "Effective destination"
+        TITLE_DOMAIN -> "Title and domain"
+    }
 }
 
 enum class DuplicateDecision {
@@ -67,7 +102,15 @@ enum class DuplicateDecision {
     CANCEL_SAVE,
     REPLACE_EXISTING,
     MERGE_METADATA,
-    MOVE_EXISTING,
+    MOVE_EXISTING;
+
+    val displayName: String get() = when (this) {
+        KEEP_BOTH -> "Keep both"
+        CANCEL_SAVE -> "Cancel save"
+        REPLACE_EXISTING -> "Replace existing"
+        MERGE_METADATA -> "Merge metadata"
+        MOVE_EXISTING -> "Move existing"
+    }
 }
 
 enum class IntegrityEventType {

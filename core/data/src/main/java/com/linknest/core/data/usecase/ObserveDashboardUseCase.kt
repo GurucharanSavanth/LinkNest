@@ -2,8 +2,11 @@ package com.linknest.core.data.usecase
 
 import com.linknest.core.data.repository.CategoryRepository
 import com.linknest.core.data.repository.UserPreferencesRepository
-import com.linknest.core.model.DashboardSmartSection
 import com.linknest.core.model.DashboardModel
+import com.linknest.core.model.DashboardSmartSection
+import com.linknest.core.model.FollowUpStatus
+import com.linknest.core.model.HealthStatus
+import com.linknest.core.model.WebsiteListItem
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -40,7 +43,7 @@ class ObserveDashboardUseCase @Inject constructor(
                 .asSequence()
                 .filter { it.openCount > 0 }
                 .sortedWith(
-                    compareByDescending<com.linknest.core.model.WebsiteListItem> { it.openCount }
+                    compareByDescending<WebsiteListItem> { it.openCount }
                         .thenByDescending { it.lastOpenedAt ?: 0L },
                 )
                 .take(6)
@@ -53,7 +56,7 @@ class ObserveDashboardUseCase @Inject constructor(
                 .asSequence()
                 .filter { website ->
                     website.healthStatus in ATTENTION_HEALTH_STATUSES ||
-                        website.followUpStatus != com.linknest.core.model.FollowUpStatus.NONE
+                        website.followUpStatus != FollowUpStatus.NONE
                 }
                 .sortedByDescending { it.revisitAt ?: it.lastCheckedAt ?: it.lastOpenedAt ?: 0L }
                 .take(6)
@@ -124,13 +127,13 @@ class ObserveDashboardUseCase @Inject constructor(
 
     private companion object {
         val ATTENTION_HEALTH_STATUSES = setOf(
-            com.linknest.core.model.HealthStatus.BLOCKED,
-            com.linknest.core.model.HealthStatus.LOGIN_REQUIRED,
-            com.linknest.core.model.HealthStatus.REDIRECTED,
-            com.linknest.core.model.HealthStatus.DNS_FAILED,
-            com.linknest.core.model.HealthStatus.SSL_ISSUE,
-            com.linknest.core.model.HealthStatus.DEAD,
-            com.linknest.core.model.HealthStatus.TIMEOUT,
+            HealthStatus.BLOCKED,
+            HealthStatus.LOGIN_REQUIRED,
+            HealthStatus.REDIRECTED,
+            HealthStatus.DNS_FAILED,
+            HealthStatus.SSL_ISSUE,
+            HealthStatus.DEAD,
+            HealthStatus.TIMEOUT,
         )
     }
 }

@@ -431,17 +431,7 @@ private fun SettingsScreen(
                                         )
                                     }
                                     Text(
-                                        text = when (item.status) {
-                                            HealthStatus.OK -> "Good"
-                                            HealthStatus.BLOCKED -> "Blocked"
-                                            HealthStatus.LOGIN_REQUIRED -> "Login"
-                                            HealthStatus.REDIRECTED -> "Redirected"
-                                            HealthStatus.DNS_FAILED -> "DNS failed"
-                                            HealthStatus.SSL_ISSUE -> "TLS issue"
-                                            HealthStatus.DEAD -> "Dead"
-                                            HealthStatus.TIMEOUT -> "Timeout"
-                                            HealthStatus.UNKNOWN -> "Unknown"
-                                        },
+                                        text = item.status.displayName,
                                         color = when (item.status) {
                                             HealthStatus.OK -> Color(0xFF4CAF50)
                                             HealthStatus.BLOCKED,

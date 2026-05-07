@@ -11,10 +11,10 @@ internal fun WebsiteListItem.dashboardMetadataSummary(): String? {
         sourceLabel?.trim()?.takeIf(String::isNotEmpty)?.let { add("Source: $it") }
         customLabel?.trim()?.takeIf(String::isNotEmpty)?.let { add("Label: $it") }
         if (priority != WebsitePriority.NORMAL) {
-            add("${priority.displayName()} priority")
+            add("${priority.displayName} priority")
         }
         if (followUpStatus != FollowUpStatus.NONE) {
-            add(followUpStatus.displayName())
+            add(followUpStatus.displayName)
         }
     }
         .map(String::trim)
@@ -34,14 +34,5 @@ internal fun WebsiteListItem.matchesDashboardQuery(query: String): Boolean =
         sourceLabel.orEmpty().lowercase().contains(query) ||
         customLabel.orEmpty().lowercase().contains(query) ||
         tagNames.any { it.lowercase().contains(query) } ||
-        priority.displayName().lowercase().contains(query) ||
-        followUpStatus.displayName().lowercase().contains(query)
-
-private fun WebsitePriority.displayName(): String = formatEnumLabel(name)
-
-private fun FollowUpStatus.displayName(): String = formatEnumLabel(name)
-
-private fun formatEnumLabel(raw: String): String =
-    raw.lowercase()
-        .split('_')
-        .joinToString(" ") { token -> token.replaceFirstChar(Char::uppercaseChar) }
+        priority.displayName.lowercase().contains(query) ||
+        followUpStatus.displayName.lowercase().contains(query)

@@ -573,7 +573,7 @@ private fun SearchFilterPanel(
                 HealthStatus.entries.forEach { status ->
                     if (status != HealthStatus.UNKNOWN) {
                         ToggleChip(
-                            label = status.label,
+                            label = status.displayName,
                             selected = status in uiState.selectedHealthStatuses,
                         ) { onToggleHealthStatus(status) }
                     }
@@ -585,7 +585,7 @@ private fun SearchFilterPanel(
             content = {
                 WebsitePriority.entries.forEach { priority ->
                     ToggleChip(
-                        label = priority.label,
+                        label = priority.displayName,
                         selected = priority in uiState.selectedPriorities,
                     ) { onTogglePriority(priority) }
                 }
@@ -597,7 +597,7 @@ private fun SearchFilterPanel(
                 FollowUpStatus.entries.forEach { status ->
                     if (status != FollowUpStatus.NONE) {
                         ToggleChip(
-                            label = status.label,
+                            label = status.displayName,
                             selected = status in uiState.selectedFollowUpStatuses,
                         ) { onToggleFollowUpStatus(status) }
                     }
@@ -689,7 +689,7 @@ private fun SearchGroup(
                         }
                     }
                     Text(
-                        text = item.healthStatus.label,
+                        text = item.healthStatus.displayName,
                         style = MaterialTheme.typography.labelMedium,
                         color = item.healthStatus.color,
                     )
@@ -730,19 +730,6 @@ private fun SaveFilterDialog(
     )
 }
 
-private val HealthStatus.label: String
-    get() = when (this) {
-        HealthStatus.OK -> "Good"
-        HealthStatus.LOGIN_REQUIRED -> "Login"
-        HealthStatus.BLOCKED -> "Blocked"
-        HealthStatus.REDIRECTED -> "Redirected"
-        HealthStatus.DNS_FAILED -> "DNS"
-        HealthStatus.SSL_ISSUE -> "TLS"
-        HealthStatus.DEAD -> "Dead"
-        HealthStatus.TIMEOUT -> "Timeout"
-        HealthStatus.UNKNOWN -> "Unknown"
-    }
-
 private val HealthStatus.color: Color
     get() = when (this) {
         HealthStatus.OK -> Color(0xFF66BB6A)
@@ -756,21 +743,4 @@ private val HealthStatus.color: Color
         HealthStatus.TIMEOUT,
         -> Color(0xFFEF5350)
         HealthStatus.UNKNOWN -> Color(0xFF90A4AE)
-    }
-
-private val WebsitePriority.label: String
-    get() = when (this) {
-        WebsitePriority.LOW -> "Low"
-        WebsitePriority.NORMAL -> "Normal"
-        WebsitePriority.HIGH -> "High"
-        WebsitePriority.CRITICAL -> "Critical"
-    }
-
-private val FollowUpStatus.label: String
-    get() = when (this) {
-        FollowUpStatus.NONE -> "None"
-        FollowUpStatus.REVIEW -> "Review"
-        FollowUpStatus.IN_PROGRESS -> "In Progress"
-        FollowUpStatus.WAITING -> "Waiting"
-        FollowUpStatus.DONE -> "Done"
     }

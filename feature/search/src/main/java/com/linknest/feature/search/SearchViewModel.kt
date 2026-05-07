@@ -53,6 +53,7 @@ private data class SearchRequest(
     val spec: SavedFilterSpec,
 )
 
+@androidx.compose.runtime.Stable
 data class SearchUiState(
     val query: String = "",
     val isSearching: Boolean = false,

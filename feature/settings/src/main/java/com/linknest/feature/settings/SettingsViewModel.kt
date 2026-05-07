@@ -9,6 +9,7 @@ import com.linknest.core.action.pipeline.HealthCheckPipeline
 import com.linknest.core.action.pipeline.ImportRestorePipeline
 import com.linknest.core.data.usecase.ObserveUserPreferencesUseCase
 import com.linknest.core.data.usecase.UpdateBackgroundHealthChecksUseCase
+import com.linknest.core.data.usecase.UpdateBackupFolderUriUseCase
 import com.linknest.core.data.usecase.UpdateEncryptedBackupsUseCase
 import com.linknest.core.data.usecase.UpdateTileDensityModeUseCase
 import com.linknest.core.data.usecase.UpdateTileSizeUseCase
@@ -45,6 +46,7 @@ class SettingsViewModel @Inject constructor(
     private val updateTileDensityModeUseCase: UpdateTileDensityModeUseCase,
     private val updateBackgroundHealthChecksUseCase: UpdateBackgroundHealthChecksUseCase,
     private val updateEncryptedBackupsUseCase: UpdateEncryptedBackupsUseCase,
+    private val updateBackupFolderUriUseCase: UpdateBackupFolderUriUseCase,
     private val backupExportPipeline: BackupExportPipeline,
     private val importRestorePipeline: ImportRestorePipeline,
     private val healthCheckPipeline: HealthCheckPipeline,
@@ -90,6 +92,17 @@ class SettingsViewModel @Inject constructor(
     fun onEncryptedBackupsChanged(enabled: Boolean) {
         viewModelScope.launch {
             updateEncryptedBackupsUseCase(enabled)
+        }
+    }
+
+    fun onBackupFolderSelected(uri: String?) {
+        viewModelScope.launch {
+            updateBackupFolderUriUseCase(uri)
+            _uiState.update {
+                it.copy(
+                    userMessage = if (uri != null) "Backup folder set." else "Backup folder cleared.",
+                )
+            }
         }
     }
 

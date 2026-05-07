@@ -31,4 +31,8 @@ class OfflineFirstUserPreferencesRepository @Inject constructor(
     override suspend fun setEncryptedBackupsEnabled(enabled: Boolean) {
         preferencesDataSource.setEncryptedBackupsEnabled(enabled)
     }
+
+    override suspend fun setBackupFolderUri(uri: String?) {
+        preferencesDataSource.setBackupFolderUri(uri)
+    }
 }

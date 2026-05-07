@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.HealthAndSafety
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material3.CircularProgressIndicator
@@ -36,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -59,6 +61,21 @@ fun SettingsRoute(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
+
+    val backupFolderLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree(),
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                )
+            }
+        }
+        viewModel.onBackupFolderSelected(uri?.toString())
+    }
 
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/octet-stream"),
@@ -96,7 +113,33 @@ fun SettingsRoute(
 
     LaunchedEffect(uiState.pendingExportFileName) {
         uiState.pendingExportFileName?.let { fileName ->
-            exportLauncher.launch(fileName)
+            val folderUriStr = uiState.preferences.backupFolderUri
+            if (folderUriStr != null) {
+                val treeUri = android.net.Uri.parse(folderUriStr)
+                val docUri = runCatching {
+                    android.provider.DocumentsContract.createDocument(
+                        context.contentResolver,
+                        android.provider.DocumentsContract.buildDocumentUriUsingTree(
+                            treeUri,
+                            android.provider.DocumentsContract.getTreeDocumentId(treeUri),
+                        ),
+                        "application/octet-stream",
+                        fileName,
+                    )
+                }.getOrNull()
+                if (docUri != null) {
+                    val saved = runCatching {
+                        context.contentResolver.openOutputStream(docUri)?.use { output ->
+                            output.write(uiState.backupJson.toByteArray(Charsets.UTF_8))
+                        } ?: error("null stream")
+                    }.isSuccess
+                    viewModel.onBackupSaveResult(docUri.toString(), saved)
+                } else {
+                    exportLauncher.launch(fileName)
+                }
+            } else {
+                exportLauncher.launch(fileName)
+            }
         }
     }
 
@@ -111,6 +154,8 @@ fun SettingsRoute(
         onTileSizeSelected = viewModel::onTileSizeSelected,
         onBackgroundHealthChecksChanged = viewModel::onBackgroundHealthChecksChanged,
         onEncryptedBackupsChanged = viewModel::onEncryptedBackupsChanged,
+        onSetBackupFolder = { backupFolderLauncher.launch(null) },
+        onClearBackupFolder = { viewModel.onBackupFolderSelected(null) },
         onExportBackup = viewModel::onExportBackup,
         onImportPayloadChanged = viewModel::onImportPayloadChanged,
         onImportBackup = {
@@ -137,6 +182,8 @@ private fun SettingsScreen(
     onTileSizeSelected: (Int) -> Unit,
     onBackgroundHealthChecksChanged: (Boolean) -> Unit,
     onEncryptedBackupsChanged: (Boolean) -> Unit,
+    onSetBackupFolder: () -> Unit,
+    onClearBackupFolder: () -> Unit,
     onExportBackup: () -> Unit,
     onImportPayloadChanged: (String) -> Unit,
     onImportBackup: () -> Unit,
@@ -261,45 +308,79 @@ private fun SettingsScreen(
 
                 item {
                     GlassPanel {
-                    Text(
-                        text = "Backup & Restore",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        OutlinedButton(onClick = onExportBackup, enabled = !uiState.isExporting) {
-                            if (uiState.isExporting) {
-                                CircularProgressIndicator(strokeWidth = 2.dp)
-                            } else {
-                                Text(if (uiState.preferences.encryptedBackupsEnabled) "Export Backup" else "Export JSON")
-                            }
-                        }
-                        OutlinedButton(onClick = onImportBackup, enabled = !uiState.isImporting) {
-                            if (uiState.isImporting) {
-                                CircularProgressIndicator(strokeWidth = 2.dp)
-                            } else {
-                                Text("Import JSON")
-                            }
-                        }
-                    }
-                    uiState.backupFilePath?.let { path ->
-                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Last export: $path",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            text = "Backup & Restore",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OutlinedButton(onClick = onExportBackup, enabled = !uiState.isExporting) {
+                                if (uiState.isExporting) {
+                                    CircularProgressIndicator(strokeWidth = 2.dp)
+                                } else {
+                                    Text(if (uiState.preferences.encryptedBackupsEnabled) "Export Backup" else "Export JSON")
+                                }
+                            }
+                            OutlinedButton(onClick = onImportBackup, enabled = !uiState.isImporting) {
+                                if (uiState.isImporting) {
+                                    CircularProgressIndicator(strokeWidth = 2.dp)
+                                } else {
+                                    Text("Import")
+                                }
+                            }
+                        }
+                        uiState.backupFilePath?.let { path ->
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Last export: $path",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.FolderOpen,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Backup folder",
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                                val folderUri = uiState.preferences.backupFolderUri
+                                Text(
+                                    text = if (folderUri != null) folderUri else "Not set — picker shown on each export",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = onSetBackupFolder) {
+                                Text(if (uiState.preferences.backupFolderUri != null) "Change folder" else "Set folder")
+                            }
+                            if (uiState.preferences.backupFolderUri != null) {
+                                OutlinedButton(onClick = onClearBackupFolder) {
+                                    Text("Clear")
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = if (uiState.importPayload.isNotBlank()) uiState.importPayload else uiState.backupJson,
+                            onValueChange = onImportPayloadChanged,
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Backup payload (.json or encrypted .lnen)") },
+                            minLines = 5,
                         )
                     }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = if (uiState.importPayload.isNotBlank()) uiState.importPayload else uiState.backupJson,
-                        onValueChange = onImportPayloadChanged,
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Backup payload (.json or encrypted .lnen)") },
-                        minLines = 5,
-                    )
-                }
                 }
 
                 item {

@@ -42,6 +42,7 @@ class LinkNestPreferencesDataSource @Inject constructor(
                     ?: TileDensityMode.ADAPTIVE,
                 backgroundHealthChecksEnabled = preferences[BACKGROUND_HEALTH_CHECKS_ENABLED] ?: true,
                 encryptedBackupsEnabled = preferences[ENCRYPTED_BACKUPS_ENABLED] ?: true,
+                backupFolderUri = preferences[BACKUP_FOLDER_URI],
             )
         }
 
@@ -75,11 +76,37 @@ class LinkNestPreferencesDataSource @Inject constructor(
         }
     }
 
+    suspend fun setBackupFolderUri(uri: String?) = withContext(ioDispatcher) {
+        dataStore.edit { preferences ->
+            if (uri == null) {
+                preferences.remove(BACKUP_FOLDER_URI)
+            } else {
+                preferences[BACKUP_FOLDER_URI] = uri
+            }
+        }
+    }
+
+    suspend fun replaceUserPreferences(userPreferences: UserPreferences) = withContext(ioDispatcher) {
+        dataStore.edit { preferences ->
+            preferences[LAYOUT_MODE] = userPreferences.layoutMode.name
+            preferences[TILE_SIZE_DP] = userPreferences.tileSizeDp
+            preferences[TILE_DENSITY_MODE] = userPreferences.tileDensityMode.name
+            preferences[BACKGROUND_HEALTH_CHECKS_ENABLED] = userPreferences.backgroundHealthChecksEnabled
+            preferences[ENCRYPTED_BACKUPS_ENABLED] = userPreferences.encryptedBackupsEnabled
+            if (userPreferences.backupFolderUri != null) {
+                preferences[BACKUP_FOLDER_URI] = userPreferences.backupFolderUri
+            } else {
+                preferences.remove(BACKUP_FOLDER_URI)
+            }
+        }
+    }
+
     private companion object {
         val LAYOUT_MODE = stringPreferencesKey("layout_mode")
         val TILE_SIZE_DP = intPreferencesKey("tile_size_dp")
         val TILE_DENSITY_MODE = stringPreferencesKey("tile_density_mode")
         val BACKGROUND_HEALTH_CHECKS_ENABLED = booleanPreferencesKey("background_health_checks_enabled")
         val ENCRYPTED_BACKUPS_ENABLED = booleanPreferencesKey("encrypted_backups_enabled")
+        val BACKUP_FOLDER_URI = stringPreferencesKey("backup_folder_uri")
     }
 }

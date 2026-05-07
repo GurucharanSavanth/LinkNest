@@ -52,3 +52,11 @@ class UpdateEncryptedBackupsUseCase @Inject constructor(
         userPreferencesRepository.setEncryptedBackupsEnabled(enabled)
     }
 }
+
+class UpdateBackupFolderUriUseCase @Inject constructor(
+    private val userPreferencesRepository: UserPreferencesRepository,
+) {
+    suspend operator fun invoke(uri: String?) {
+        userPreferencesRepository.setBackupFolderUri(uri)
+    }
+}

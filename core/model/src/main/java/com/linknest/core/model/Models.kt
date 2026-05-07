@@ -10,6 +10,7 @@ data class UserPreferences(
     val tileDensityMode: TileDensityMode = TileDensityMode.ADAPTIVE,
     val backgroundHealthChecksEnabled: Boolean = true,
     val encryptedBackupsEnabled: Boolean = true,
+    val backupFolderUri: String? = null,
 ) {
     companion object {
         const val DEFAULT_TILE_SIZE_DP = 112

@@ -142,4 +142,5 @@ interface UserPreferencesRepository {
     suspend fun setTileDensityMode(tileDensityMode: TileDensityMode)
     suspend fun setBackgroundHealthChecksEnabled(enabled: Boolean)
     suspend fun setEncryptedBackupsEnabled(enabled: Boolean)
+    suspend fun setBackupFolderUri(uri: String?)
 }

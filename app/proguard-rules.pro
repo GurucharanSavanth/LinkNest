@@ -1,21 +1,73 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# Keep line numbers for crash reports
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Room — keep entity field names used by TypeConverters and schema export
+-keep class * extends androidx.room.RoomDatabase { *; }
+-keep @androidx.room.Entity class * { *; }
+-keep @androidx.room.Dao class * { *; }
+-dontwarn androidx.room.**
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Keep all enums (Room TypeConverters use Enum.valueOf by name)
+-keepclassmembers enum * {
+    public static **[] values();
+    public static ** valueOf(java.lang.String);
+    **[] $VALUES;
+}
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Hilt — keep entry points and injected constructors
+-keep class dagger.hilt.** { *; }
+-keep @dagger.hilt.android.HiltAndroidApp class * { *; }
+-keep @dagger.hilt.android.AndroidEntryPoint class * { *; }
+-keep @dagger.hilt.InstallIn class * { *; }
+-dontwarn dagger.hilt.**
+
+# Kotlin & coroutines
+-keep class kotlin.coroutines.** { *; }
+-keepclassmembernames class kotlinx.** {
+    volatile <fields>;
+}
+-dontwarn kotlin.**
+-dontwarn kotlinx.**
+
+# OkHttp / Okio
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-keep class okhttp3.** { *; }
+
+# Jsoup
+-keep class org.jsoup.** { *; }
+
+# Coil
+-keep class coil3.** { *; }
+-dontwarn coil3.**
+
+# AppSearch
+-keep class androidx.appsearch.** { *; }
+-dontwarn androidx.appsearch.**
+
+# DataStore
+-keep class androidx.datastore.** { *; }
+-dontwarn androidx.datastore.**
+
+# WorkManager
+-keep class androidx.work.** { *; }
+-keep class * extends androidx.work.Worker { *; }
+-keep class * extends androidx.work.CoroutineWorker { *; }
+-dontwarn androidx.work.**
+
+# org.json (used in BackupManager)
+-keep class org.json.** { *; }
+
+# Javax inject
+-dontwarn javax.inject.**
+
+# Keep app model classes used in backup serialization
+-keep class com.linknest.core.data.model.** { *; }
+-keep class com.linknest.core.model.** { *; }
+
+# Keep Hilt worker factory entries
+-keep class * extends dagger.hilt.android.internal.managers.** { *; }
+
+# Prevent removing unused interface implementations
+-keep interface com.linknest.core.data.repository.** { *; }

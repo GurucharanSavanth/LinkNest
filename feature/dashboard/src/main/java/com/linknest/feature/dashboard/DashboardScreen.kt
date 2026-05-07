@@ -353,7 +353,7 @@ Surface(
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
     ) {
-        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp)) {
             if (maxWidth < 420.dp) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     DashboardSearchField(
@@ -416,7 +416,7 @@ private fun DashboardSearchField(
             .fillMaxWidth()
             .heightIn(min = 54.dp)
             .focusRequester(queryFocusRequester),
-leadingIcon = {
+        leadingIcon = {
             Icon(
                 Icons.AutoMirrored.Rounded.ManageSearch,
                 contentDescription = "Search",

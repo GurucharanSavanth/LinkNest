@@ -3,6 +3,7 @@ package com.linknest.core.database.di
 import android.content.Context
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import kotlinx.coroutines.Dispatchers
 import com.linknest.core.database.DatabaseMigrations
 import com.linknest.core.database.LinkNestDatabase
 import com.linknest.core.database.dao.CategoryDao
@@ -31,6 +32,7 @@ object DatabaseModule {
         .databaseBuilder(context, LinkNestDatabase::class.java, "linknest.db")
         .addMigrations(*DatabaseMigrations.ALL)
         .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
+        .setQueryCoroutineContext(Dispatchers.IO)
         .build()
 
     @Provides

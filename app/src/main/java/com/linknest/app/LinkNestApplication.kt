@@ -32,15 +32,17 @@ class LinkNestApplication : Application(), SingletonImageLoader.Factory, Configu
         ImageLoader.Builder(context)
             .memoryCache {
                 MemoryCache.Builder()
-                    .maxSizePercent(this, 0.12)
+                    .maxSizePercent(this, 0.15)
                     .build()
             }
             .diskCache {
                 DiskCache.Builder()
                     .directory(LinkNestStorage.imageLoaderCacheDirectory(this).toOkioPath())
-                    .maxSizeBytes(32L * 1024L * 1024L)
+                    .maxSizeBytes(48L * 1024L * 1024L)
                     .build()
             }
+            .crossfade(true)
+            .respectCacheHeaders(false)
             .build()
 
     override fun onCreate() {

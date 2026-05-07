@@ -6,10 +6,14 @@ import java.io.File
 object LinkNestStorage {
     const val ICON_CACHE_DIR = "icon-cache"
     const val IMAGE_LOADER_CACHE_DIR = "image-loader"
+    private const val BACKUP_STAGING_DIR = "backup-staging"
 
     fun iconCacheDirectory(context: Context): File =
         File(context.filesDir, ICON_CACHE_DIR)
 
     fun imageLoaderCacheDirectory(context: Context): File =
         File(context.cacheDir, IMAGE_LOADER_CACHE_DIR)
+
+    fun backupStagingDirectory(context: Context): File =
+        File(context.filesDir, BACKUP_STAGING_DIR)
 }

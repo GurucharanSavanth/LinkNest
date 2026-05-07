@@ -1,5 +1,6 @@
 package com.linknest.feature.settings
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.linknest.core.action.ActionResult
@@ -7,6 +8,7 @@ import com.linknest.core.action.model.BackupExportPipelineInput
 import com.linknest.core.action.pipeline.BackupExportPipeline
 import com.linknest.core.action.pipeline.HealthCheckPipeline
 import com.linknest.core.action.pipeline.ImportRestorePipeline
+import com.linknest.core.data.backup.BackupManager
 import com.linknest.core.data.usecase.ObserveUserPreferencesUseCase
 import com.linknest.core.data.usecase.UpdateBackgroundHealthChecksUseCase
 import com.linknest.core.data.usecase.UpdateBackupFolderUriUseCase
@@ -17,16 +19,20 @@ import com.linknest.core.model.HealthReportItem
 import com.linknest.core.model.TileDensityMode
 import com.linknest.core.model.UserPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class SettingsUiState(
     val isLoading: Boolean = true,
     val preferences: UserPreferences = UserPreferences(),
+    val hasStagedBackup: Boolean = false,
     val isExporting: Boolean = false,
     val isImporting: Boolean = false,
     val isRunningHealthCheck: Boolean = false,
@@ -41,12 +47,14 @@ data class SettingsUiState(
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
+    @param:ApplicationContext private val appContext: Context,
     observeUserPreferencesUseCase: ObserveUserPreferencesUseCase,
     private val updateTileSizeUseCase: UpdateTileSizeUseCase,
     private val updateTileDensityModeUseCase: UpdateTileDensityModeUseCase,
     private val updateBackgroundHealthChecksUseCase: UpdateBackgroundHealthChecksUseCase,
     private val updateEncryptedBackupsUseCase: UpdateEncryptedBackupsUseCase,
     private val updateBackupFolderUriUseCase: UpdateBackupFolderUriUseCase,
+    private val backupManager: BackupManager,
     private val backupExportPipeline: BackupExportPipeline,
     private val importRestorePipeline: ImportRestorePipeline,
     private val healthCheckPipeline: HealthCheckPipeline,
@@ -64,6 +72,10 @@ class SettingsViewModel @Inject constructor(
                     )
                 }
             }
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            val hasStagedBackup = backupManager.latestStagedBackup(appContext) != null
+            _uiState.update { it.copy(hasStagedBackup = hasStagedBackup) }
         }
     }
 
@@ -120,6 +132,7 @@ class SettingsViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             isExporting = false,
+                            hasStagedBackup = true,
                             backupJson = result.value.artifact.json,
                             backupFilePath = result.value.artifact.filePath,
                             pendingExportFileName = result.value.artifact.fileName,
@@ -184,6 +197,20 @@ class SettingsViewModel @Inject constructor(
     fun onImportBackupPayload(payload: String) {
         _uiState.update { it.copy(importPayload = payload) }
         importBackupPayload(payload)
+    }
+
+    fun onImportStagedBackup() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val file = backupManager.latestStagedBackup(appContext)
+            if (file == null) {
+                _uiState.update { it.copy(userMessage = "No staged backup found. Export first.") }
+                return@launch
+            }
+            val payload = runCatching { file.readText(Charsets.UTF_8) }.getOrDefault("")
+            withContext(Dispatchers.Main) {
+                importBackupPayload(payload)
+            }
+        }
     }
 
     private fun importBackupPayload(payload: String) {

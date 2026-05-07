@@ -477,15 +477,17 @@ private fun PinnedSection(section: DashboardSmartSection, onOpenWebsite: (Websit
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
     ) {
-        Text("Pinned", fontWeight = FontWeight.SemiBold)
-        Spacer(modifier = Modifier.height(10.dp))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            section.websites.forEach { website ->
-                AssistChip(
-                    onClick = { onOpenWebsite(website) },
-                    label = { Text(website.title) },
-                    leadingIcon = { Icon(Icons.Rounded.PushPin, contentDescription = "Pinned") },
-                )
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text("Pinned", fontWeight = FontWeight.SemiBold)
+            Spacer(modifier = Modifier.height(10.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                section.websites.forEach { website ->
+                    AssistChip(
+                        onClick = { onOpenWebsite(website) },
+                        label = { Text(website.title) },
+                        leadingIcon = { Icon(Icons.Rounded.PushPin, contentDescription = "Pinned") },
+                    )
+                }
             }
         }
     }
@@ -512,68 +514,70 @@ private fun CategorySection(
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().combinedClickable(onClick = onToggleCategory, onLongClick = onCategoryLongPress),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier.size(42.dp).clip(CircleShape).background(accentColor.copy(alpha = 0.16f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(category.iconValue ?: category.name.take(1))
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text(category.name, fontWeight = FontWeight.SemiBold)
-                    Text("${category.websiteCount} websites", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            if (focusedCategoryId == category.id) {
-                Icon(Icons.Rounded.PushPin, contentDescription = "Focused category", tint = accentColor)
-            }
-        }
-
-        AnimatedVisibility(visible = !category.isCollapsed) {
-            Column {
-                Spacer(modifier = Modifier.height(12.dp))
-                if (layoutMode == LayoutMode.LIST) {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        category.websites.forEach { website ->
-                            key(website.id) {
-                                WebsiteTile(
-                                    website = website,
-                                    accentColor = accentColor,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    isFocused = focusedWebsiteId == website.id,
-                                    onOpenWebsite = { onOpenWebsite(website) },
-                                    onLongPress = { onWebsiteLongPress(website) },
-                                )
-                            }
-                        }
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().combinedClickable(onClick = onToggleCategory, onLongClick = onCategoryLongPress),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier.size(42.dp).clip(CircleShape).background(accentColor.copy(alpha = 0.16f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(category.iconValue ?: category.name.take(1))
                     }
-                } else {
-                    BoxWithConstraints {
-                        val spacing = 12.dp
-                        val columns = (maxWidth / adaptiveMinTileWidth.dp).toInt().coerceAtLeast(1)
-                        val tileWidth = ((maxWidth - spacing * (columns - 1)) / columns).coerceAtLeast(144.dp)
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(spacing),
-                            verticalArrangement = Arrangement.spacedBy(spacing),
-                            maxItemsInEachRow = columns,
-                        ) {
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(category.name, fontWeight = FontWeight.SemiBold)
+                        Text("${category.websiteCount} websites", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                if (focusedCategoryId == category.id) {
+                    Icon(Icons.Rounded.PushPin, contentDescription = "Focused category", tint = accentColor)
+                }
+            }
+
+            AnimatedVisibility(visible = !category.isCollapsed) {
+                Column {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    if (layoutMode == LayoutMode.LIST) {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             category.websites.forEach { website ->
                                 key(website.id) {
                                     WebsiteTile(
                                         website = website,
                                         accentColor = accentColor,
-                                        modifier = Modifier.width(tileWidth),
-                                        layoutMode = layoutMode,
+                                        modifier = Modifier.fillMaxWidth(),
                                         isFocused = focusedWebsiteId == website.id,
                                         onOpenWebsite = { onOpenWebsite(website) },
                                         onLongPress = { onWebsiteLongPress(website) },
                                     )
+                                }
+                            }
+                        }
+                    } else {
+                        BoxWithConstraints {
+                            val spacing = 12.dp
+                            val columns = (maxWidth / adaptiveMinTileWidth.dp).toInt().coerceAtLeast(1)
+                            val tileWidth = ((maxWidth - spacing * (columns - 1)) / columns).coerceAtLeast(144.dp)
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(spacing),
+                                verticalArrangement = Arrangement.spacedBy(spacing),
+                                maxItemsInEachRow = columns,
+                            ) {
+                                category.websites.forEach { website ->
+                                    key(website.id) {
+                                        WebsiteTile(
+                                            website = website,
+                                            accentColor = accentColor,
+                                            modifier = Modifier.width(tileWidth),
+                                            layoutMode = layoutMode,
+                                            isFocused = focusedWebsiteId == website.id,
+                                            onOpenWebsite = { onOpenWebsite(website) },
+                                            onLongPress = { onWebsiteLongPress(website) },
+                                        )
+                                    }
                                 }
                             }
                         }

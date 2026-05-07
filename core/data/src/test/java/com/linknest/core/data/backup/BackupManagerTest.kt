@@ -15,6 +15,7 @@ import org.junit.Test
 
 class BackupManagerTest {
     private val manager = BackupManager(
+        appContext = null,
         ioDispatcher = Dispatchers.Unconfined,
         backupCryptoManager = BackupCryptoManager(),
     )

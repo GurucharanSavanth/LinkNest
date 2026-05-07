@@ -162,6 +162,7 @@ fun SettingsRoute(
             when {
                 uiState.importPayload.isNotBlank() -> viewModel.onImportBackup()
                 uiState.backupJson.isNotBlank() -> viewModel.onImportBackupPayload(uiState.backupJson)
+                uiState.hasStagedBackup -> viewModel.onImportStagedBackup()
                 else -> importLauncher.launch(arrayOf("*/*"))
             }
         },
@@ -330,6 +331,7 @@ private fun SettingsScreen(
                                         when {
                                             uiState.importPayload.isNotBlank() -> "Import pasted"
                                             uiState.backupJson.isNotBlank() -> "Import this export"
+                                            uiState.hasStagedBackup -> "Import last export"
                                             else -> "Import from file"
                                         }
                                     )
@@ -385,13 +387,14 @@ private fun SettingsScreen(
                             modifier = Modifier.fillMaxWidth(),
                             label = {
                             Text(
-                                if (uiState.importPayload.isBlank() && uiState.backupJson.isNotBlank()) {
-                                    "Last export (ready to import)"
-                                } else {
-                                    "Paste backup payload to import"
+                                when {
+                                    uiState.importPayload.isBlank() && uiState.backupJson.isNotBlank() -> "Last export (ready to import)"
+                                    uiState.importPayload.isBlank() && uiState.hasStagedBackup -> "Staged backup available — click Import last export"
+                                    else -> "Paste backup payload to import"
                                 }
                             )
                         },
+                        readOnly = uiState.importPayload.isBlank() && (uiState.backupJson.isNotBlank() || uiState.hasStagedBackup),
                             minLines = 5,
                         )
                     }

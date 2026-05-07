@@ -1,7 +1,11 @@
 package com.linknest.core.data.backup
 
+import android.content.Context
 import com.linknest.core.common.coroutine.IoDispatcher
 import com.linknest.core.data.model.BackupArtifact
+import com.linknest.core.data.storage.LinkNestStorage
+import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.File
 import com.linknest.core.data.model.BackupCategory
 import com.linknest.core.data.model.BackupIconCache
 import com.linknest.core.data.model.BackupIntegrityEvent
@@ -33,6 +37,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 class BackupManager @Inject constructor(
+    @param:ApplicationContext private val appContext: Context?,
     @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
     private val backupCryptoManager: BackupCryptoManager,
 ) {
@@ -46,15 +51,30 @@ class BackupManager @Inject constructor(
         val checksum = compressed.sha256()
         val envelope = buildEnvelope(snapshot, compressed, checksum, encrypted).toString(2)
         val output = if (encrypted) backupCryptoManager.encrypt(envelope) else envelope
-        val fileName = "linknest-backup-${snapshot.exportedAt}.${if (encrypted) "lnen" else "json"}"
+        val ext = if (encrypted) "lnen" else "json"
+        val fileName = "linknest-backup-${snapshot.exportedAt}.$ext"
         parse(output)
+        val stagingFile = appContext?.let { ctx ->
+            runCatching {
+                val dir = LinkNestStorage.backupStagingDirectory(ctx).apply { mkdirs() }
+                File(dir, "latest-backup.$ext").also { f -> f.writeText(output, Charsets.UTF_8) }
+            }.getOrNull()
+        }
         BackupArtifact(
             fileName = fileName,
-            filePath = null,
+            filePath = stagingFile?.absolutePath,
             json = output,
             isEncrypted = encrypted,
             checksum = checksum,
         )
+    }
+
+    fun latestStagedBackup(context: Context): File? {
+        val dir = LinkNestStorage.backupStagingDirectory(context)
+        return dir.listFiles()
+            ?.filter { it.name.startsWith("latest-backup.") }
+            ?.maxByOrNull { it.lastModified() }
+            ?.takeIf { it.exists() && it.length() > 0 }
     }
 
     fun parse(json: String): BackupSnapshot {

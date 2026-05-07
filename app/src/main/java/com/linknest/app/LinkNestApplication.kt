@@ -41,8 +41,6 @@ class LinkNestApplication : Application(), SingletonImageLoader.Factory, Configu
                     .maxSizeBytes(48L * 1024L * 1024L)
                     .build()
             }
-            .crossfade(true)
-            .respectCacheHeaders(false)
             .build()
 
     override fun onCreate() {

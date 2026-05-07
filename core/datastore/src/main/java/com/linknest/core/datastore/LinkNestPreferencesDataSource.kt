@@ -93,8 +93,9 @@ class LinkNestPreferencesDataSource @Inject constructor(
             preferences[TILE_DENSITY_MODE] = userPreferences.tileDensityMode.name
             preferences[BACKGROUND_HEALTH_CHECKS_ENABLED] = userPreferences.backgroundHealthChecksEnabled
             preferences[ENCRYPTED_BACKUPS_ENABLED] = userPreferences.encryptedBackupsEnabled
-            if (userPreferences.backupFolderUri != null) {
-                preferences[BACKUP_FOLDER_URI] = userPreferences.backupFolderUri
+            val folderUri = userPreferences.backupFolderUri
+            if (folderUri != null) {
+                preferences[BACKUP_FOLDER_URI] = folderUri
             } else {
                 preferences.remove(BACKUP_FOLDER_URI)
             }

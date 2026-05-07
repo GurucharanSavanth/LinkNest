@@ -26,6 +26,8 @@ import com.linknest.core.model.AddWebsitePhase
 import com.linknest.core.model.DuplicateDecision
 import com.linknest.core.model.HealthStatus
 import com.linknest.core.model.IconSource
+import com.linknest.core.model.MetadataPreview
+import com.linknest.core.model.SmartCaptureResult
 import com.linknest.core.network.model.MetadataResult
 import javax.inject.Inject
 
@@ -121,7 +123,7 @@ class AddWebsitePipeline @Inject constructor(
             }
             is ActionResult.Failure -> {
                 issues += result.issue
-                com.linknest.core.model.SmartCaptureResult(suggestedCategory = suggestion)
+                SmartCaptureResult(suggestedCategory = suggestion)
             }
         }
 
@@ -313,7 +315,7 @@ class AddWebsitePipeline @Inject constructor(
         }
     }
 
-    private fun com.linknest.core.model.MetadataPreview.toMetadataResult(): MetadataResult = MetadataResult(
+    private fun MetadataPreview.toMetadataResult(): MetadataResult = MetadataResult(
         title = title,
         canonicalUrl = canonicalUrl,
         finalUrl = finalUrl ?: normalizedUrl,

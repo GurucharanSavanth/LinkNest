@@ -9,6 +9,7 @@ import java.net.URL
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 
 class UrlHealthMonitor @Inject constructor(
@@ -28,6 +29,7 @@ class UrlHealthMonitor @Inject constructor(
                 setRequestProperty("User-Agent", USER_AGENT)
             }
 
+            val cancelHandle = coroutineContext[Job]?.invokeOnCompletion { connection.disconnect() }
             try {
                 val statusCode = connection.responseCode
                 when {
@@ -40,6 +42,7 @@ class UrlHealthMonitor @Inject constructor(
                     else -> HealthStatus.UNKNOWN
                 }
             } finally {
+                cancelHandle?.dispose()
                 connection.disconnect()
             }
         } catch (cancellationException: CancellationException) {
@@ -57,6 +60,6 @@ class UrlHealthMonitor @Inject constructor(
     private companion object {
         const val TIMEOUT_MILLIS = 10_000
         const val USER_AGENT =
-            "Mozilla/5.0 (Android) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36 LinkNest/0.2"
+            "Mozilla/5.0 (Android) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36 LinkNest/1.0"
     }
 }

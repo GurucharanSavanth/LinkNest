@@ -61,7 +61,7 @@ internal object WidgetRemoteViewsFactory {
                     deepLinkPendingIntent(
                         context = context,
                         deepLink = "linknest://website/${link.websiteId}",
-                        requestCode = link.websiteId.hashCode(),
+                        requestCode = (link.websiteId and 0x7FFFFFFF).toInt(),
                     ),
                 )
             }

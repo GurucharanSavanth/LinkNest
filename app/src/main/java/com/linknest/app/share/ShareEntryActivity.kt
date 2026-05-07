@@ -60,10 +60,12 @@ class ShareEntryActivity : ComponentActivity() {
                 }
             }
         }
-        handleSharedIntent(intent)
+        lifecycleScope.launch {
+            handleSharedIntent(intent)
+        }
     }
 
-    private fun handleSharedIntent(intent: Intent?) {
+    private suspend fun handleSharedIntent(intent: Intent?) {
         val sharedText = extractSharedText(intent)
         if (sharedText.isBlank()) {
             uiState = ShareCaptureUiState.Error(
@@ -71,18 +73,15 @@ class ShareEntryActivity : ComponentActivity() {
             )
             return
         }
-
-        lifecycleScope.launch {
-            when (
-                val result = shareCapturePipeline(
-                    ShareCapturePipelineInput(sharedText = sharedText),
-                )
-            ) {
-                is ActionResult.Success -> openAddWebsite(result.value.normalizedUrl)
-                is ActionResult.PartialSuccess -> openAddWebsite(result.value.normalizedUrl)
-                is ActionResult.Failure -> {
-                    uiState = ShareCaptureUiState.Error(message = result.issue.message)
-                }
+        when (
+            val result = shareCapturePipeline(
+                ShareCapturePipelineInput(sharedText = sharedText),
+            )
+        ) {
+            is ActionResult.Success -> openAddWebsite(result.value.normalizedUrl)
+            is ActionResult.PartialSuccess -> openAddWebsite(result.value.normalizedUrl)
+            is ActionResult.Failure -> {
+                uiState = ShareCaptureUiState.Error(message = result.issue.message)
             }
         }
     }

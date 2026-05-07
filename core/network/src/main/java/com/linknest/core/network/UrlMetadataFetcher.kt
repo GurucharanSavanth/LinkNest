@@ -123,6 +123,6 @@ class UrlMetadataFetcher @Inject constructor(
     private companion object {
         const val TIMEOUT_MILLIS = 12_000
         const val USER_AGENT =
-            "Mozilla/5.0 (Android) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36 LinkNest/0.1"
+            "Mozilla/5.0 (Android) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36 LinkNest/1.0"
     }
 }

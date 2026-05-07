@@ -159,10 +159,10 @@ fun SettingsRoute(
         onExportBackup = viewModel::onExportBackup,
         onImportPayloadChanged = viewModel::onImportPayloadChanged,
         onImportBackup = {
-            if (uiState.importPayload.isNotBlank()) {
-                viewModel.onImportBackup()
-            } else {
-                importLauncher.launch(arrayOf("application/octet-stream", "application/json", "application/x-linknest-backup"))
+            when {
+                uiState.importPayload.isNotBlank() -> viewModel.onImportBackup()
+                uiState.backupJson.isNotBlank() -> viewModel.onImportBackupPayload(uiState.backupJson)
+                else -> importLauncher.launch(arrayOf("*/*"))
             }
         },
         onRunHealthCheck = viewModel::onRunHealthCheck,
@@ -326,7 +326,13 @@ private fun SettingsScreen(
                                 if (uiState.isImporting) {
                                     CircularProgressIndicator(strokeWidth = 2.dp)
                                 } else {
-                                    Text("Import")
+                                    Text(
+                                        when {
+                                            uiState.importPayload.isNotBlank() -> "Import pasted"
+                                            uiState.backupJson.isNotBlank() -> "Import this export"
+                                            else -> "Import from file"
+                                        }
+                                    )
                                 }
                             }
                         }
@@ -377,7 +383,15 @@ private fun SettingsScreen(
                             value = if (uiState.importPayload.isNotBlank()) uiState.importPayload else uiState.backupJson,
                             onValueChange = onImportPayloadChanged,
                             modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Backup payload (.json or encrypted .lnen)") },
+                            label = {
+                            Text(
+                                if (uiState.importPayload.isBlank() && uiState.backupJson.isNotBlank()) {
+                                    "Last export (ready to import)"
+                                } else {
+                                    "Paste backup payload to import"
+                                }
+                            )
+                        },
                             minLines = 5,
                         )
                     }

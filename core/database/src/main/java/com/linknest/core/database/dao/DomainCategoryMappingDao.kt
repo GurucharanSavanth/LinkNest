@@ -33,4 +33,7 @@ interface DomainCategoryMappingDao {
 
     @Query("SELECT * FROM domain_category_mapping ORDER BY usage_count DESC, last_used_at DESC")
     suspend fun getAllMappings(): List<DomainCategoryMappingEntity>
+
+    @Query("DELETE FROM domain_category_mapping")
+    suspend fun deleteAllMappings()
 }

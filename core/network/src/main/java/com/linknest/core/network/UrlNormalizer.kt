@@ -6,6 +6,14 @@ import javax.inject.Inject
 
 class UrlNormalizer @Inject constructor() {
     fun normalize(rawUrl: String): Result<NormalizedUrl> = runCatching {
+        normalizeInternal(rawUrl, strict = false)
+    }
+
+    fun normalizeStrict(rawUrl: String): Result<NormalizedUrl> = runCatching {
+        normalizeInternal(rawUrl, strict = true)
+    }
+
+    private fun normalizeInternal(rawUrl: String, strict: Boolean): NormalizedUrl {
         val candidate = rawUrl.trim()
         require(candidate.isNotBlank()) { "URL is required." }
         require(candidate.length <= MAX_URL_LENGTH) { "URL exceeds the supported length." }
@@ -18,29 +26,40 @@ class UrlNormalizer @Inject constructor() {
 
         val parsed = URI(withScheme)
         val originalScheme = parsed.scheme?.lowercase() ?: error("Missing URL scheme.")
-        require(originalScheme !in BLOCKED_SCHEMES) { "This URL scheme is unsafe." }
+
+        if (strict) {
+            require(originalScheme !in BLOCKED_SCHEMES) { "This URL scheme is unsafe." }
+        }
 
         val normalizedResult = if (originalScheme == "http" || originalScheme == "https") {
-            normalizeWebUrl(rawUrl, parsed, originalScheme)
+            normalizeWebUrl(rawUrl, parsed, originalScheme, strict)
         } else {
             normalizeExternalScheme(rawUrl, candidate, parsed, originalScheme)
         }
 
-        normalizedResult
+        return normalizedResult
     }
 
     private fun normalizeWebUrl(
         rawUrl: String,
         parsed: URI,
         originalScheme: String,
+        strict: Boolean,
     ): NormalizedUrl {
-        require(parsed.userInfo.isNullOrBlank()) { "Credentials in URLs are not supported." }
-        require(parsed.rawAuthority?.contains('@') != true) { "Credentials in URLs are not supported." }
+        if (strict) {
+            require(parsed.userInfo.isNullOrBlank()) { "Credentials in URLs are not supported." }
+            require(parsed.rawAuthority?.contains('@') != true) { "Credentials in URLs are not supported." }
+        }
 
         val host = parsed.host?.trim()
             ?: parsed.rawAuthority?.substringBefore('@')?.substringBefore(':')?.trim()
-            ?: error("URL must include a valid host.")
-        val (asciiHost, isInternationalizedHost) = UrlSecurityPolicy.normalizeHost(host)
+            ?: if (strict) error("URL must include a valid host.") else rawUrl
+
+        val (asciiHost, isInternationalizedHost) = if (strict) {
+            UrlSecurityPolicy.normalizeHost(host)
+        } else {
+            UrlSecurityPolicy.normalizeHostLenient(host)
+        }
 
         val path = parsed.path?.ifBlank { "/" } ?: "/"
         val normalizedPort = parsed.port

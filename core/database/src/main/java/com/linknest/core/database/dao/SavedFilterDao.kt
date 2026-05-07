@@ -27,4 +27,7 @@ interface SavedFilterDao {
 
     @Query("DELETE FROM saved_filters WHERE id = :filterId")
     suspend fun deleteSavedFilter(filterId: Long)
+
+    @Query("DELETE FROM saved_filters")
+    suspend fun deleteAllSavedFilters()
 }

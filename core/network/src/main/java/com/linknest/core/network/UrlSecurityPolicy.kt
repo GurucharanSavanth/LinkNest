@@ -15,6 +15,29 @@ object UrlSecurityPolicy {
         return ascii to (ascii != trimmed.lowercase(Locale.US))
     }
 
+    fun normalizeHostLenient(rawHost: String): Pair<String, Boolean> {
+        val trimmed = rawHost.trim().trim('.')
+        if (trimmed.isBlank()) {
+            return rawHost.lowercase(Locale.US) to false
+        }
+        val ascii = runCatching {
+            IDN.toASCII(trimmed, IDN.USE_STD3_ASCII_RULES).lowercase(Locale.US)
+        }.getOrDefault(trimmed.lowercase(Locale.US))
+        validateHostSyntaxLenient(ascii)
+        return ascii to (ascii != trimmed.lowercase(Locale.US))
+    }
+
+    private fun validateHostSyntaxLenient(host: String) {
+        if (host.isBlank()) return
+        if (host.length > 253) return
+        if (host.startsWith('[') && host.endsWith(']')) return
+        if (IPV4_PATTERN.matches(host)) return
+        if (!host.contains('.')) return
+        host.split('.').forEach { label ->
+            if (label.isBlank() || label.length > 63) return@forEach
+        }
+    }
+
     fun validateResolvedUrl(url: String) {
         val parsed = URI(url)
         val scheme = parsed.scheme?.lowercase(Locale.US)
@@ -83,6 +106,7 @@ object UrlSecurityPolicy {
 
     private fun ensurePublicIpv4(host: String) {
         val parts = host.split('.').map(String::toInt)
+        require(parts.size >= 2) { "URL host is invalid." }
         require(parts.all { it in 0..255 }) { "URL host is invalid." }
         val first = parts[0]
         val second = parts[1]

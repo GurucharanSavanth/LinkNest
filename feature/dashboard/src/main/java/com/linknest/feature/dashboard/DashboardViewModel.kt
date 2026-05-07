@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+@androidx.compose.runtime.Stable
 data class DashboardUiState(
     val isLoading: Boolean = true,
     val dashboard: DashboardModel = DashboardModel(),

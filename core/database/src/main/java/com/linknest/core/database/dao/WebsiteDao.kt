@@ -21,6 +21,7 @@ interface WebsiteDao {
     suspend fun updateWebsite(entity: WebsiteEntryEntity)
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
+    @Transaction
     suspend fun insertWebsites(entities: List<WebsiteEntryEntity>): List<Long>
 
     @Query("SELECT * FROM website_entries WHERE id = :websiteId LIMIT 1")
@@ -257,6 +258,9 @@ interface WebsiteDao {
 
     @Query("DELETE FROM website_entries WHERE id = :websiteId")
     suspend fun deleteWebsite(websiteId: Long)
+
+    @Query("DELETE FROM website_entries")
+    suspend fun deleteAllWebsites()
 
     @Transaction
     @Query(

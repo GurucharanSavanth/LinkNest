@@ -17,7 +17,7 @@ class UrlHealthMonitor @Inject constructor(
     suspend fun probe(url: String): HealthStatus = withContext(ioDispatcher) {
         try {
             val parsed = URI(url)
-            require(parsed.scheme == "https") { "Only secure HTTPS health checks are allowed." }
+            require(parsed.scheme?.lowercase() == "https") { "Only secure HTTPS health checks are allowed." }
             UrlSecurityPolicy.validateResolvedUrl(url)
 
             val connection = (URL(url).openConnection() as HttpURLConnection).apply {

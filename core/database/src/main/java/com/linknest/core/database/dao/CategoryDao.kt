@@ -39,6 +39,14 @@ interface CategoryDao {
     )
     suspend fun getActiveCategories(): List<CategoryEntity>
 
+    @Query(
+        """
+        SELECT * FROM categories
+        ORDER BY sort_order ASC, name COLLATE NOCASE ASC
+        """,
+    )
+    suspend fun getAllCategories(): List<CategoryEntity>
+
     @Query("SELECT * FROM categories WHERE id = :categoryId LIMIT 1")
     suspend fun getCategoryById(categoryId: Long): CategoryEntity?
 
@@ -104,6 +112,9 @@ interface CategoryDao {
 
     @Query("DELETE FROM categories WHERE id = :categoryId")
     suspend fun deleteCategory(categoryId: Long)
+
+    @Query("DELETE FROM categories")
+    suspend fun deleteAllCategories()
 
     @Query(
         """

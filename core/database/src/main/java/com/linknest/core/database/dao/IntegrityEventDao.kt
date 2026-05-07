@@ -16,6 +16,9 @@ interface IntegrityEventDao {
     @Query("SELECT * FROM integrity_events ORDER BY created_at DESC LIMIT :limit")
     suspend fun getRecentEvents(limit: Int): List<IntegrityEventEntity>
 
+    @Query("SELECT * FROM integrity_events ORDER BY created_at ASC, id ASC")
+    suspend fun getAllEvents(): List<IntegrityEventEntity>
+
     @Query("SELECT * FROM integrity_events ORDER BY created_at DESC LIMIT :limit")
     fun observeRecentEvents(limit: Int): Flow<List<IntegrityEventEntity>>
 
@@ -28,4 +31,7 @@ interface IntegrityEventDao {
         """,
     )
     suspend fun getLatestEventByType(type: IntegrityEventType): IntegrityEventEntity?
+
+    @Query("DELETE FROM integrity_events")
+    suspend fun deleteAllEvents()
 }

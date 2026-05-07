@@ -10,6 +10,7 @@ import com.linknest.core.model.WebsitePriority
 data class BackupSnapshot(
     val schemaVersion: Int = 2,
     val exportedAt: Long,
+    val appVersion: String = "0.1.0",
     val categories: List<BackupCategory>,
     val websites: List<BackupWebsite>,
     val tags: List<BackupTag>,
@@ -17,6 +18,9 @@ data class BackupSnapshot(
     val mappings: List<DomainCategoryMapping>,
     val savedFilters: List<BackupSavedFilter> = emptyList(),
     val events: List<BackupIntegrityEvent> = emptyList(),
+    val iconCache: List<BackupIconCache> = emptyList(),
+    val recentQueries: List<BackupRecentQuery> = emptyList(),
+    val preferences: BackupPreferences? = null,
 )
 
 data class BackupCategory(
@@ -90,11 +94,39 @@ data class BackupIntegrityEvent(
     val createdAt: Long,
 )
 
+data class BackupIconCache(
+    val id: Long,
+    val websiteId: Long,
+    val sourceUrl: String?,
+    val localUri: String?,
+    val contentHash: String?,
+    val mimeType: String?,
+    val etag: String?,
+    val fetchedAt: Long,
+    val updatedAt: Long,
+)
+
+data class BackupRecentQuery(
+    val id: Long,
+    val query: String,
+    val useCount: Int,
+    val lastUsedAt: Long,
+)
+
+data class BackupPreferences(
+    val layoutMode: String,
+    val tileSizeDp: Int,
+    val tileDensityMode: String,
+    val backgroundHealthChecksEnabled: Boolean,
+    val encryptedBackupsEnabled: Boolean,
+)
+
 data class BackupArtifact(
     val fileName: String,
     val filePath: String,
     val json: String,
     val isEncrypted: Boolean,
+    val checksum: String,
 )
 
 data class ImportSummary(
@@ -104,6 +136,8 @@ data class ImportSummary(
     val importedMappings: Int,
     val importedSavedFilters: Int = 0,
     val importedEvents: Int = 0,
+    val importedIconCacheEntries: Int = 0,
+    val importedRecentQueries: Int = 0,
     val skippedWebsites: Int,
     val warnings: List<String> = emptyList(),
 )

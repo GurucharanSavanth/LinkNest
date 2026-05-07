@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -32,15 +31,11 @@ import androidx.compose.material.icons.automirrored.rounded.ManageSearch
 import androidx.compose.material.icons.automirrored.rounded.Label
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.GridView
-import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.ViewAgenda
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -48,7 +43,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -56,6 +50,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -72,20 +67,20 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
-import com.linknest.core.designsystem.component.GlassPanel
-import com.linknest.core.designsystem.component.LinkNestGradientBackground
+
 import com.linknest.core.model.DashboardCategory
 import com.linknest.core.model.DashboardSmartSection
 import com.linknest.core.model.LayoutMode
 import com.linknest.core.model.WebsiteListItem
-import com.linknest.core.designsystem.R as DesignSystemR
 
 @Composable
 fun DashboardRoute(
@@ -159,7 +154,6 @@ private fun DashboardScreen(
     onDeleteCategory: (Long) -> Unit,
 ) {
     val queryFocusRequester = remember { FocusRequester() }
-    var smartSectionTarget by remember { mutableStateOf<DashboardSmartSection?>(null) }
     var websiteActionTarget by remember { mutableStateOf<WebsiteListItem?>(null) }
     var categoryActionTarget by remember { mutableStateOf<DashboardCategory?>(null) }
     var websiteDeleteTarget by remember { mutableStateOf<WebsiteListItem?>(null) }
@@ -168,9 +162,6 @@ private fun DashboardScreen(
     var categoryReorderTarget by remember { mutableStateOf<DashboardCategory?>(null) }
     var websiteReorderTarget by remember { mutableStateOf<WebsiteListItem?>(null) }
 
-    smartSectionTarget?.let { section ->
-        SmartSectionSheet(section = section, onDismiss = { smartSectionTarget = null }, onOpenWebsite = onOpenWebsite)
-    }
     websiteActionTarget?.let { website ->
         WebsiteActionsSheet(
             website = website,
@@ -258,8 +249,10 @@ private fun DashboardScreen(
         )
     }
 
-    LinkNestGradientBackground(
+    Box(
         modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
             .focusable()
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyUp) return@onPreviewKeyEvent false
@@ -293,18 +286,18 @@ private fun DashboardScreen(
         Scaffold(
             containerColor = Color.Transparent,
             snackbarHost = { SnackbarHost(snackbarHostState) },
-            bottomBar = {
-                DashboardBottomDock(
-                    recentSection = uiState.dashboard.recentSection,
-                    mostUsedSection = uiState.dashboard.mostUsedSection,
-                    onOpenSection = { smartSectionTarget = it },
-                    onAddWebsite = onAddWebsite,
-                )
+            floatingActionButton = {
+                FloatingActionButton(
+                    onClick = onAddWebsite,
+                    shape = RoundedCornerShape(16.dp),
+                ) {
+                    Icon(Icons.Rounded.Add, contentDescription = "Add Website")
+                }
             },
         ) { innerPadding ->
             if (uiState.isLoading) {
                 Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+                    CircularProgressIndicator(modifier = Modifier.semantics { contentDescription = "Loading dashboard" })
                 }
             } else {
                 LazyColumn(
@@ -325,17 +318,6 @@ private fun DashboardScreen(
                     }
                     uiState.dashboard.pinnedSection?.takeIf { it.websites.isNotEmpty() }?.let { pinned ->
                         item(key = "pinned") { PinnedSection(section = pinned, onOpenWebsite = onOpenWebsite) }
-                    }
-                    val compactSmartSections = uiState.dashboard.smartSections.filter { section ->
-                        section.id !in setOf("pinned", "recent", "most_used")
-                    }
-                    if (compactSmartSections.isNotEmpty()) {
-                        item(key = "compact-smart-sections") {
-                            CompactSmartSections(
-                                sections = compactSmartSections,
-                                onOpenSection = { smartSectionTarget = it },
-                            )
-                        }
                     }
                     items(uiState.dashboard.categories, key = { "category-${it.id}" }) { category ->
                         CategorySection(
@@ -366,11 +348,19 @@ private fun DashboardHeader(
     onOpenSearch: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
-    GlassPanel(modifier = Modifier.fillMaxWidth()) {
+Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+    ) {
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-            if (maxWidth < 360.dp) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    DashboardBranding()
+            if (maxWidth < 420.dp) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    DashboardSearchField(
+                        searchQuery = searchQuery,
+                        queryFocusRequester = queryFocusRequester,
+                        onSearchQueryChanged = onSearchQueryChanged,
+                    )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -392,7 +382,12 @@ private fun DashboardHeader(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    DashboardBranding(modifier = Modifier.weight(1f))
+                    DashboardSearchField(
+                        searchQuery = searchQuery,
+                        queryFocusRequester = queryFocusRequester,
+                        onSearchQueryChanged = onSearchQueryChanged,
+                        modifier = Modifier.weight(1f),
+                    )
                     LayoutToggle(
                         layoutMode = layoutMode,
                         onLayoutModeChanged = onLayoutModeChanged,
@@ -404,71 +399,39 @@ private fun DashboardHeader(
                 }
             }
         }
-        Spacer(modifier = Modifier.height(14.dp))
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = onSearchQueryChanged,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 54.dp)
-                .focusRequester(queryFocusRequester),
-            leadingIcon = {
-                Icon(
-                    Icons.AutoMirrored.Rounded.ManageSearch,
-                    contentDescription = null,
-                )
-            },
-            placeholder = { Text("Search websites, tags, or domains") },
-            singleLine = true,
-            shape = RoundedCornerShape(18.dp),
-            colors = TextFieldDefaults.colors(
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent,
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.24f),
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f),
-            ),
-        )
     }
 }
 
 @Composable
-private fun DashboardBranding(modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)),
-            contentAlignment = Alignment.Center,
-        ) {
+private fun DashboardSearchField(
+    searchQuery: String,
+    queryFocusRequester: FocusRequester,
+    onSearchQueryChanged: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    OutlinedTextField(
+        value = searchQuery,
+        onValueChange = onSearchQueryChanged,
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 54.dp)
+            .focusRequester(queryFocusRequester),
+leadingIcon = {
             Icon(
-                painter = painterResource(id = DesignSystemR.drawable.ic_linknest_mark),
-                contentDescription = "LinkNest",
-                tint = Color.Unspecified,
-                modifier = Modifier.size(28.dp),
+                Icons.AutoMirrored.Rounded.ManageSearch,
+                contentDescription = "Search",
             )
-        }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "LinkNest",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = "Search, organize, and open fast",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
+        },
+        placeholder = { Text("Search links...") },
+        singleLine = true,
+        shape = RoundedCornerShape(16.dp),
+        colors = TextFieldDefaults.colors(
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent,
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.24f),
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f),
+        ),
+    )
 }
 
 @Composable
@@ -491,7 +454,10 @@ private fun DashboardHeaderActions(
 
 @Composable
 private fun LayoutToggle(layoutMode: LayoutMode, onLayoutModeChanged: (LayoutMode) -> Unit) {
-    GlassPanel {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+    ) {
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { onLayoutModeChanged(LayoutMode.LIST) }) {
                 Icon(Icons.Rounded.ViewAgenda, contentDescription = "List mode", tint = if (layoutMode == LayoutMode.LIST) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
@@ -503,148 +469,14 @@ private fun LayoutToggle(layoutMode: LayoutMode, onLayoutModeChanged: (LayoutMod
     }
 }
 
-@Composable
-private fun DashboardBottomDock(
-    recentSection: DashboardSmartSection?,
-    mostUsedSection: DashboardSmartSection?,
-    onOpenSection: (DashboardSmartSection) -> Unit,
-    onAddWebsite: () -> Unit,
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-    ) {
-        GlassPanel(
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 14.dp),
-        ) {
-            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                if (maxWidth < 420.dp) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        DashboardQuickActions(
-                            recentSection = recentSection,
-                            mostUsedSection = mostUsedSection,
-                            onOpenSection = onOpenSection,
-                        )
-                        Button(
-                            onClick = onAddWebsite,
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(18.dp),
-                        ) {
-                            Icon(Icons.Rounded.Add, contentDescription = null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Add Website")
-                        }
-                    }
-                } else {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        DashboardQuickActions(
-                            modifier = Modifier.weight(1f),
-                            recentSection = recentSection,
-                            mostUsedSection = mostUsedSection,
-                            onOpenSection = onOpenSection,
-                        )
-                        FloatingActionButton(
-                            onClick = onAddWebsite,
-                            shape = RoundedCornerShape(18.dp),
-                        ) {
-                            Icon(Icons.Rounded.Add, contentDescription = "Add Website")
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun DashboardQuickActions(
-    recentSection: DashboardSmartSection?,
-    mostUsedSection: DashboardSmartSection?,
-    onOpenSection: (DashboardSmartSection) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    FlowRow(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        recentSection?.let { section ->
-            FilledTonalButton(
-                onClick = { onOpenSection(section) },
-                shape = RoundedCornerShape(16.dp),
-            ) {
-                Icon(Icons.Rounded.History, contentDescription = null)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Recent")
-            }
-        }
-        mostUsedSection?.let { section ->
-            FilledTonalButton(
-                onClick = { onOpenSection(section) },
-                shape = RoundedCornerShape(16.dp),
-            ) {
-                Icon(Icons.Rounded.Tune, contentDescription = null)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Frequent")
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun CompactSmartSections(
-    sections: List<DashboardSmartSection>,
-    onOpenSection: (DashboardSmartSection) -> Unit,
-) {
-    GlassPanel(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = "Smart Sections",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Spacer(modifier = Modifier.height(10.dp))
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            sections.forEach { section ->
-                AssistChip(
-                    onClick = { onOpenSection(section) },
-                    label = { Text("${section.title} (${section.websites.size})") },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = when (section.id) {
-                                "needs_attention" -> Icons.Rounded.Tune
-                                "duplicates" -> Icons.AutoMirrored.Rounded.ManageSearch
-                                "unsorted" -> Icons.AutoMirrored.Rounded.Label
-                                "last_imported" -> Icons.Rounded.History
-                                else -> Icons.Rounded.Tune
-                            },
-                            contentDescription = null,
-                        )
-                    },
-                )
-            }
-        }
-    }
-}
-
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PinnedSection(section: DashboardSmartSection, onOpenWebsite: (WebsiteListItem) -> Unit) {
-    GlassPanel(modifier = Modifier.fillMaxWidth()) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+    ) {
         Text("Pinned", fontWeight = FontWeight.SemiBold)
         Spacer(modifier = Modifier.height(10.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -652,7 +484,7 @@ private fun PinnedSection(section: DashboardSmartSection, onOpenWebsite: (Websit
                 AssistChip(
                     onClick = { onOpenWebsite(website) },
                     label = { Text(website.title) },
-                    leadingIcon = { Icon(Icons.Rounded.PushPin, contentDescription = null) },
+                    leadingIcon = { Icon(Icons.Rounded.PushPin, contentDescription = "Pinned") },
                 )
             }
         }
@@ -673,11 +505,12 @@ private fun CategorySection(
     onWebsiteLongPress: (WebsiteListItem) -> Unit,
 ) {
     val accentColor = category.colorHex.toColorOr(MaterialTheme.colorScheme.primary)
-    GlassPanel(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .animateContentSize()
-            .background(Color.Transparent, RoundedCornerShape(24.dp)),
+            .animateContentSize(),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().combinedClickable(onClick = onToggleCategory, onLongClick = onCategoryLongPress),
@@ -698,7 +531,7 @@ private fun CategorySection(
                 }
             }
             if (focusedCategoryId == category.id) {
-                Icon(Icons.Rounded.PushPin, contentDescription = null, tint = accentColor)
+                Icon(Icons.Rounded.PushPin, contentDescription = "Focused category", tint = accentColor)
             }
         }
 
@@ -708,14 +541,16 @@ private fun CategorySection(
                 if (layoutMode == LayoutMode.LIST) {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         category.websites.forEach { website ->
-                            WebsiteTile(
-                                website = website,
-                                accentColor = accentColor,
-                                modifier = Modifier.fillMaxWidth(),
-                                isFocused = focusedWebsiteId == website.id,
-                                onOpenWebsite = { onOpenWebsite(website) },
-                                onLongPress = { onWebsiteLongPress(website) },
-                            )
+                            key(website.id) {
+                                WebsiteTile(
+                                    website = website,
+                                    accentColor = accentColor,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    isFocused = focusedWebsiteId == website.id,
+                                    onOpenWebsite = { onOpenWebsite(website) },
+                                    onLongPress = { onWebsiteLongPress(website) },
+                                )
+                            }
                         }
                     }
                 } else {
@@ -729,15 +564,17 @@ private fun CategorySection(
                             maxItemsInEachRow = columns,
                         ) {
                             category.websites.forEach { website ->
-                                WebsiteTile(
-                                    website = website,
-                                    accentColor = accentColor,
-                                    modifier = Modifier.width(tileWidth),
-                                    layoutMode = layoutMode,
-                                    isFocused = focusedWebsiteId == website.id,
-                                    onOpenWebsite = { onOpenWebsite(website) },
-                                    onLongPress = { onWebsiteLongPress(website) },
-                                )
+                                key(website.id) {
+                                    WebsiteTile(
+                                        website = website,
+                                        accentColor = accentColor,
+                                        modifier = Modifier.width(tileWidth),
+                                        layoutMode = layoutMode,
+                                        isFocused = focusedWebsiteId == website.id,
+                                        onOpenWebsite = { onOpenWebsite(website) },
+                                        onLongPress = { onWebsiteLongPress(website) },
+                                    )
+                                }
                             }
                         }
                     }
@@ -800,7 +637,14 @@ private fun ListWebsiteTile(
                     MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.46f)
                 },
             )
-            .combinedClickable(onClick = onOpenWebsite, onLongClick = onLongPress)
+            .semantics { contentDescription = website.tileContentDescription() }
+            .combinedClickable(
+                onClickLabel = "Open ${website.title}",
+                onLongClickLabel = "Show website actions",
+                role = Role.Button,
+                onClick = onOpenWebsite,
+                onLongClick = onLongPress,
+            )
             .padding(14.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -817,7 +661,7 @@ private fun ListWebsiteTile(
                 )
                 if (website.isPinned) {
                     Spacer(modifier = Modifier.width(6.dp))
-                    Icon(Icons.Rounded.PushPin, contentDescription = null, modifier = Modifier.size(14.dp), tint = accentColor)
+                    Icon(Icons.Rounded.PushPin, contentDescription = "Pinned", modifier = Modifier.size(14.dp), tint = accentColor)
                 }
             }
             Text(
@@ -875,7 +719,14 @@ private fun GridWebsiteTile(
                     MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
                 },
             )
-            .combinedClickable(onClick = onOpenWebsite, onLongClick = onLongPress)
+            .semantics { contentDescription = website.tileContentDescription() }
+            .combinedClickable(
+                onClickLabel = "Open ${website.title}",
+                onLongClickLabel = "Show website actions",
+                role = Role.Button,
+                onClick = onOpenWebsite,
+                onLongClick = onLongPress,
+            )
             .padding(14.dp)
             .animateContentSize(),
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -887,7 +738,7 @@ private fun GridWebsiteTile(
         ) {
             WebsiteIcon(title = website.title, emoji = website.emojiIcon, iconUrl = website.preferredIconUrl, accentColor = accentColor)
             if (website.isPinned) {
-                Icon(Icons.Rounded.PushPin, contentDescription = null, modifier = Modifier.size(16.dp), tint = accentColor)
+                Icon(Icons.Rounded.PushPin, contentDescription = "Pinned", modifier = Modifier.size(16.dp), tint = accentColor)
             }
         }
         Text(
@@ -945,7 +796,7 @@ private fun MiniTagChip(tag: String) {
         ) {
             Icon(
                 Icons.AutoMirrored.Rounded.Label,
-                contentDescription = null,
+                contentDescription = "Tag",
                 modifier = Modifier.size(12.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -965,7 +816,7 @@ private fun WebsiteIcon(title: String, emoji: String?, iconUrl: String?, accentC
     when {
         !iconUrl.isNullOrBlank() -> AsyncImage(
             model = iconUrl,
-            contentDescription = null,
+            contentDescription = "Website icon for $title",
             modifier = Modifier.size(42.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surface),
             contentScale = ContentScale.Crop,
         )
@@ -981,3 +832,12 @@ private fun WebsiteIcon(title: String, emoji: String?, iconUrl: String?, accentC
 }
 
 private fun String.toColorOr(fallback: Color): Color = runCatching { Color(parseColor(this)) }.getOrDefault(fallback)
+
+private fun WebsiteListItem.tileContentDescription(): String = buildString {
+    append(title)
+    append(", ")
+    append(domain)
+    append(", ")
+    append(healthStatus.name.lowercase().replaceFirstChar(Char::uppercaseChar))
+    if (isPinned) append(", pinned")
+}

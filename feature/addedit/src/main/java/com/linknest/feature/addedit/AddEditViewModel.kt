@@ -43,6 +43,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+@androidx.compose.runtime.Stable
 data class AddEditUiState(
     val existingWebsiteId: Long? = null,
     val rawUrl: String = "",

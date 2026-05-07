@@ -42,12 +42,27 @@ class UrlNormalizerTest {
     }
 
     @Test
-    fun privateNetworkHttpTarget_isRejected() {
-        assertTrue(normalizer.normalize("http://192.168.1.10").isFailure)
+    fun privateNetworkHttpTarget_isStoredByLenientNormalizer() {
+        val result = normalizer.normalize("http://192.168.1.10").getOrThrow()
+
+        assertEquals("https://192.168.1.10/", result.normalizedUrl)
     }
 
     @Test
-    fun unsafeScheme_isRejected() {
-        assertTrue(normalizer.normalize("javascript:alert(1)").isFailure)
+    fun strictNormalizer_rejectsPrivateNetworkTarget() {
+        assertTrue(normalizer.normalizeStrict("http://192.168.1.10").isFailure)
+    }
+
+    @Test
+    fun unsafeScheme_isStoredButMarkedUnsupportedForAutomation() {
+        val result = normalizer.normalize("javascript:alert(1)").getOrThrow()
+
+        assertEquals("javascript:alert(1)", result.normalizedUrl)
+        assertTrue(result.hasUnsupportedScheme)
+    }
+
+    @Test
+    fun strictNormalizer_rejectsUnsafeScheme() {
+        assertTrue(normalizer.normalizeStrict("javascript:alert(1)").isFailure)
     }
 }

@@ -34,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -67,29 +68,31 @@ fun SmartSectionSheet(
         ) {
             Text(section.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
             section.websites.forEach { website ->
-                val metadataSummary = website.dashboardMetadataSummary()
-                GlassPanel(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().clickable {
-                            onDismiss()
-                            onOpenWebsite(website)
-                        },
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(website.title, fontWeight = FontWeight.Medium)
-                            Text(website.normalizedUrl, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            metadataSummary?.let { summary ->
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    summary,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
+                key(website.id) {
+                    val metadataSummary = website.dashboardMetadataSummary()
+                    GlassPanel(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clickable {
+                                onDismiss()
+                                onOpenWebsite(website)
+                            },
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(website.title, fontWeight = FontWeight.Medium)
+                                Text(website.normalizedUrl, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                metadataSummary?.let { summary ->
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        summary,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
                             }
+                            Text(website.openCount.toString(), style = MaterialTheme.typography.labelLarge)
                         }
-                        Text(website.openCount.toString(), style = MaterialTheme.typography.labelLarge)
                     }
                 }
             }

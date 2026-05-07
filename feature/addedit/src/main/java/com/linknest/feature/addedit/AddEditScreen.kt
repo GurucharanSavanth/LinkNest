@@ -58,6 +58,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -225,10 +227,10 @@ private fun AddEditScreen(
             ) {
                 item {
                     GlassPanel {
-                        Text("Secure URL intake", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text("URL input", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Only HTTP and HTTPS websites are accepted. Local, loopback, private-network, and unsafe schemes are blocked by default.",
+                            text = "Enter any URL. HTTPS is suggested for web links. Non-standard schemes will be stored as-is.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -237,13 +239,13 @@ private fun AddEditScreen(
                             value = uiState.rawUrl,
                             onValueChange = onUrlChanged,
                             label = { Text("Website URL") },
-                            leadingIcon = { Icon(Icons.Rounded.Link, contentDescription = null) },
+                            leadingIcon = { Icon(Icons.Rounded.Link, contentDescription = "Link icon") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                         )
                         uiState.phaseLabel?.let { phaseLabel ->
                             Spacer(modifier = Modifier.height(12.dp))
-                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth().semantics { contentDescription = phaseLabel })
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(phaseLabel, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                         }
@@ -265,7 +267,7 @@ private fun AddEditScreen(
                             verticalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
                             TextButton(onClick = { categorySheetOpen = true }) {
-                                Icon(Icons.Rounded.Add, contentDescription = null)
+                                Icon(Icons.Rounded.Add, contentDescription = "Add category")
                                 Spacer(modifier = Modifier.size(8.dp))
                                 Text("Create category")
                             }
@@ -358,10 +360,10 @@ private fun AddEditScreen(
                         if (uiState.tagDraft.isNotBlank() &&
                             uiState.selectedTags.none { it.equals(uiState.tagDraft.trim(), ignoreCase = true) }
                         ) {
-                            TextButton(onClick = onCreateTag) {
-                                Icon(Icons.Rounded.Add, contentDescription = null)
+TextButton(onClick = onCreateTag) {
+                                Icon(Icons.Rounded.Add, contentDescription = "Create tag")
                                 Spacer(modifier = Modifier.size(8.dp))
-                                Text("Create tag “${uiState.tagDraft.trim()}”")
+                                Text("Create tag \"${uiState.tagDraft.trim()}\"")
                             }
                         }
                     }

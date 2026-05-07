@@ -25,4 +25,7 @@ interface IconCacheDao {
 
     @Query("DELETE FROM icon_cache WHERE website_id = :websiteId")
     suspend fun deleteByWebsiteId(websiteId: Long)
+
+    @Query("DELETE FROM icon_cache")
+    suspend fun deleteAll()
 }

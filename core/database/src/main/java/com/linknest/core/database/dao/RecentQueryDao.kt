@@ -28,6 +28,14 @@ interface RecentQueryDao {
     )
     suspend fun getRecentQueries(limit: Int): List<RecentQueryEntity>
 
+    @Query(
+        """
+        SELECT * FROM recent_queries
+        ORDER BY last_used_at DESC, use_count DESC, query COLLATE NOCASE ASC
+        """,
+    )
+    suspend fun getAllRecentQueries(): List<RecentQueryEntity>
+
     @Query("SELECT * FROM recent_queries WHERE LOWER(query) = LOWER(:query) LIMIT 1")
     suspend fun getByQuery(query: String): RecentQueryEntity?
 

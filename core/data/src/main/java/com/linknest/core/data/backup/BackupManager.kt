@@ -4,7 +4,10 @@ import android.content.Context
 import com.linknest.core.common.coroutine.IoDispatcher
 import com.linknest.core.data.model.BackupArtifact
 import com.linknest.core.data.model.BackupCategory
+import com.linknest.core.data.model.BackupIconCache
 import com.linknest.core.data.model.BackupIntegrityEvent
+import com.linknest.core.data.model.BackupPreferences
+import com.linknest.core.data.model.BackupRecentQuery
 import com.linknest.core.data.model.BackupSavedFilter
 import com.linknest.core.data.model.BackupSnapshot
 import com.linknest.core.data.model.BackupTag
@@ -19,7 +22,14 @@ import com.linknest.core.model.IconType
 import com.linknest.core.model.IntegrityEventType
 import com.linknest.core.model.WebsitePriority
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
+import java.util.Base64
+import java.util.zip.GZIPInputStream
+import java.util.zip.GZIPOutputStream
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
@@ -27,7 +37,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 class BackupManager @Inject constructor(
-    @param:ApplicationContext private val appContext: Context,
+    @param:ApplicationContext private val appContext: Context?,
     @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
     private val backupCryptoManager: BackupCryptoManager,
 ) {
@@ -37,23 +47,38 @@ class BackupManager @Inject constructor(
     ): BackupArtifact = withContext(ioDispatcher) {
         val plainJson = buildJson(snapshot).toString(2)
         require(plainJson.length <= MAX_BACKUP_CHARS) { "Backup payload is too large to export safely." }
-        val output = if (encrypted) backupCryptoManager.encrypt(plainJson) else plainJson
-        val exportDir = LinkNestStorage.backupDirectory(appContext).apply { mkdirs() }
+        val compressed = gzip(plainJson)
+        val checksum = compressed.sha256()
+        val envelope = buildEnvelope(snapshot, compressed, checksum, encrypted).toString(2)
+        val output = if (encrypted) backupCryptoManager.encrypt(envelope) else envelope
+        val exportDir = LinkNestStorage.backupDirectory(requireNotNull(appContext) { "Backup export requires an application context." }).apply { mkdirs() }
         val fileName = "linknest-backup-${snapshot.exportedAt}.${if (encrypted) "lnen" else "json"}"
         val file = File(exportDir, fileName)
         file.outputStream().bufferedWriter().use { writer -> writer.write(output) }
+        parse(file.readText())
         BackupArtifact(
             fileName = fileName,
             filePath = file.absolutePath,
             json = output,
             isEncrypted = encrypted,
+            checksum = checksum,
         )
     }
 
     fun parse(json: String): BackupSnapshot {
         require(json.length <= MAX_BACKUP_CHARS) { "Backup payload is too large to import safely." }
         val decryptedJson = backupCryptoManager.decryptIfNeeded(json)
+        require(decryptedJson.length <= MAX_BACKUP_CHARS) { "Backup payload is too large to import safely." }
         val root = JSONObject(decryptedJson)
+        val snapshotRoot = if (root.optString("kind") == BACKUP_KIND) {
+            parseEnvelope(root)
+        } else {
+            root
+        }
+        return parseSnapshot(snapshotRoot)
+    }
+
+    private fun parseSnapshot(root: JSONObject): BackupSnapshot {
         require(root.has("schemaVersion")) { "Backup schema version is missing." }
         require(root.has("categories")) { "Backup categories are missing." }
         require(root.has("websites")) { "Backup websites are missing." }
@@ -63,6 +88,7 @@ class BackupManager @Inject constructor(
         return BackupSnapshot(
             schemaVersion = root.optInt("schemaVersion", 1),
             exportedAt = root.getLong("exportedAt"),
+            appVersion = root.optString("appVersion", "unknown"),
             categories = root.getJSONArray("categories").mapObjects { item ->
                 BackupCategory(
                     id = item.getLong("id"),
@@ -152,12 +178,79 @@ class BackupManager @Inject constructor(
                     createdAt = item.getLong("createdAt"),
                 )
             },
+            iconCache = root.optJSONArray("iconCache").mapObjectsOrEmpty { item ->
+                BackupIconCache(
+                    id = item.getLong("id"),
+                    websiteId = item.getLong("websiteId"),
+                    sourceUrl = item.optString("sourceUrl").takeIf(String::isNotBlank),
+                    localUri = item.optString("localUri").takeIf(String::isNotBlank),
+                    contentHash = item.optString("contentHash").takeIf(String::isNotBlank),
+                    mimeType = item.optString("mimeType").takeIf(String::isNotBlank),
+                    etag = item.optString("etag").takeIf(String::isNotBlank),
+                    fetchedAt = item.getLong("fetchedAt"),
+                    updatedAt = item.getLong("updatedAt"),
+                )
+            },
+            recentQueries = root.optJSONArray("recentQueries").mapObjectsOrEmpty { item ->
+                BackupRecentQuery(
+                    id = item.getLong("id"),
+                    query = item.getString("query"),
+                    useCount = item.getInt("useCount"),
+                    lastUsedAt = item.getLong("lastUsedAt"),
+                )
+            },
+            preferences = root.optJSONObject("preferences")?.let { item ->
+                BackupPreferences(
+                    layoutMode = item.getString("layoutMode"),
+                    tileSizeDp = item.getInt("tileSizeDp"),
+                    tileDensityMode = item.getString("tileDensityMode"),
+                    backgroundHealthChecksEnabled = item.getBoolean("backgroundHealthChecksEnabled"),
+                    encryptedBackupsEnabled = item.getBoolean("encryptedBackupsEnabled"),
+                )
+            },
         )
+    }
+
+    private fun buildEnvelope(
+        snapshot: BackupSnapshot,
+        compressed: ByteArray,
+        checksum: String,
+        encrypted: Boolean,
+    ): JSONObject = JSONObject().apply {
+        put("kind", BACKUP_KIND)
+        put(
+            "meta",
+            JSONObject().apply {
+                put("version", BACKUP_FORMAT_VERSION)
+                put("appVersion", snapshot.appVersion)
+                put("schemaVersion", snapshot.schemaVersion)
+                put("exportedAt", snapshot.exportedAt)
+                put("checksum", checksum)
+                put("encryption", if (encrypted) "AES-256-GCM" else "none")
+                put("compression", "GZIP")
+            },
+        )
+        put("data", Base64.getEncoder().encodeToString(compressed))
+    }
+
+    private fun parseEnvelope(root: JSONObject): JSONObject {
+        val meta = root.getJSONObject("meta")
+        val version = meta.getInt("version")
+        require(version <= BACKUP_FORMAT_VERSION) { "Unsupported backup format version: $version" }
+        require(meta.getString("compression") == "GZIP") { "Unsupported backup compression." }
+
+        val compressed = Base64.getDecoder().decode(root.getString("data"))
+        val checksum = compressed.sha256()
+        require(meta.getString("checksum") == checksum) { "Backup checksum mismatch." }
+        val plainJson = gunzip(compressed)
+        require(plainJson.length <= MAX_BACKUP_CHARS) { "Backup payload is too large to import safely." }
+        return JSONObject(plainJson)
     }
 
     private fun buildJson(snapshot: BackupSnapshot): JSONObject = JSONObject().apply {
         put("schemaVersion", snapshot.schemaVersion)
         put("exportedAt", snapshot.exportedAt)
+        put("appVersion", snapshot.appVersion)
         put(
             "categories",
             JSONArray().apply {
@@ -292,6 +385,71 @@ class BackupManager @Inject constructor(
                 }
             },
         )
+        put(
+            "iconCache",
+            JSONArray().apply {
+                snapshot.iconCache.forEach { icon ->
+                    put(
+                        JSONObject().apply {
+                            put("id", icon.id)
+                            put("websiteId", icon.websiteId)
+                            put("sourceUrl", icon.sourceUrl)
+                            put("localUri", icon.localUri)
+                            put("contentHash", icon.contentHash)
+                            put("mimeType", icon.mimeType)
+                            put("etag", icon.etag)
+                            put("fetchedAt", icon.fetchedAt)
+                            put("updatedAt", icon.updatedAt)
+                        },
+                    )
+                }
+            },
+        )
+        put(
+            "recentQueries",
+            JSONArray().apply {
+                snapshot.recentQueries.forEach { query ->
+                    put(
+                        JSONObject().apply {
+                            put("id", query.id)
+                            put("query", query.query)
+                            put("useCount", query.useCount)
+                            put("lastUsedAt", query.lastUsedAt)
+                        },
+                    )
+                }
+            },
+        )
+        snapshot.preferences?.let { preferences ->
+            put(
+                "preferences",
+                JSONObject().apply {
+                    put("layoutMode", preferences.layoutMode)
+                    put("tileSizeDp", preferences.tileSizeDp)
+                    put("tileDensityMode", preferences.tileDensityMode)
+                    put("backgroundHealthChecksEnabled", preferences.backgroundHealthChecksEnabled)
+                    put("encryptedBackupsEnabled", preferences.encryptedBackupsEnabled)
+                },
+            )
+        }
+    }
+
+    private fun gzip(plainText: String): ByteArray {
+        val output = ByteArrayOutputStream()
+        GZIPOutputStream(output).bufferedWriter(StandardCharsets.UTF_8).use { writer ->
+            writer.write(plainText)
+        }
+        return output.toByteArray()
+    }
+
+    private fun gunzip(compressed: ByteArray): String =
+        GZIPInputStream(ByteArrayInputStream(compressed)).bufferedReader(StandardCharsets.UTF_8).use { reader ->
+            reader.readText()
+        }
+
+    private fun ByteArray.sha256(): String {
+        val digest = MessageDigest.getInstance("SHA-256").digest(this)
+        return "sha256:" + digest.joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
     }
 
     private inline fun <T> JSONArray.mapObjects(block: (JSONObject) -> T): List<T> =
@@ -305,6 +463,8 @@ class BackupManager @Inject constructor(
         if (this == null) emptyList() else mapObjects(block)
 
     private companion object {
-        const val MAX_BACKUP_CHARS = 8 * 1024 * 1024
+        const val BACKUP_KIND = "linknest.backup"
+        const val BACKUP_FORMAT_VERSION = 2
+        const val MAX_BACKUP_CHARS = 32 * 1024 * 1024
     }
 }

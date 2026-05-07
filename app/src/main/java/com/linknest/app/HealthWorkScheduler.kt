@@ -31,7 +31,8 @@ class HealthWorkScheduler @Inject constructor(
             repeatIntervalTimeUnit = TimeUnit.HOURS,
         ).setConstraints(
             Constraints.Builder()
-                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .setRequiredNetworkType(NetworkType.UNMETERED)
+                .setRequiresCharging(true)
                 .setRequiresBatteryNotLow(true)
                 .build(),
         ).setBackoffCriteria(

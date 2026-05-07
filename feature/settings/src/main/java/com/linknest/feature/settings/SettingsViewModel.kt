@@ -31,6 +31,7 @@ data class SettingsUiState(
     val isRunningHealthCheck: Boolean = false,
     val backupJson: String = "",
     val backupFilePath: String? = null,
+    val pendingExportFileName: String? = null,
     val importPayload: String = "",
     val healthSummary: String? = null,
     val latestHealthReport: List<HealthReportItem> = emptyList(),
@@ -108,10 +109,11 @@ class SettingsViewModel @Inject constructor(
                             isExporting = false,
                             backupJson = result.value.artifact.json,
                             backupFilePath = result.value.artifact.filePath,
+                            pendingExportFileName = result.value.artifact.fileName,
                             userMessage = if (result.value.artifact.isEncrypted) {
-                                "Encrypted backup exported."
+                                "Encrypted backup ready. Choose where to save it."
                             } else {
-                                "Backup exported."
+                                "Backup ready. Choose where to save it."
                             },
                         )
                     }
@@ -122,6 +124,7 @@ class SettingsViewModel @Inject constructor(
                             isExporting = false,
                             backupJson = result.value.artifact.json,
                             backupFilePath = result.value.artifact.filePath,
+                            pendingExportFileName = result.value.artifact.fileName,
                             userMessage = result.issues.joinToString("\n") { issue -> issue.message },
                         )
                     }
@@ -138,8 +141,39 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun onBackupSaveResult(uriLabel: String?, success: Boolean) {
+        _uiState.update {
+            it.copy(
+                pendingExportFileName = null,
+                backupFilePath = uriLabel ?: it.backupFilePath,
+                userMessage = if (success) {
+                    "Backup saved to selected location."
+                } else {
+                    "Unable to save backup to selected location."
+                },
+            )
+        }
+    }
+
+    fun onBackupSaveCancelled() {
+        _uiState.update {
+            it.copy(
+                pendingExportFileName = null,
+                userMessage = "Backup save cancelled.",
+            )
+        }
+    }
+
     fun onImportBackup() {
-        val payload = uiState.value.importPayload
+        importBackupPayload(uiState.value.importPayload)
+    }
+
+    fun onImportBackupPayload(payload: String) {
+        _uiState.update { it.copy(importPayload = payload) }
+        importBackupPayload(payload)
+    }
+
+    private fun importBackupPayload(payload: String) {
         if (payload.isBlank()) {
             _uiState.update { it.copy(userMessage = "Paste a backup payload first.") }
             return
@@ -151,6 +185,8 @@ class SettingsViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             isImporting = false,
+                            importPayload = "",
+                            backupJson = "",
                             userMessage = "Import completed: ${result.value.summary.importedWebsites} websites restored.",
                         )
                     }
@@ -159,6 +195,8 @@ class SettingsViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             isImporting = false,
+                            importPayload = "",
+                            backupJson = "",
                             userMessage = buildString {
                                 append("Import completed with warnings.")
                                 append('\n')

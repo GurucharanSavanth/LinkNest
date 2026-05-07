@@ -1,5 +1,7 @@
 package com.linknest.feature.settings
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.HealthAndSafety
@@ -28,12 +31,14 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -55,11 +60,45 @@ fun SettingsRoute(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/octet-stream"),
+    ) { uri ->
+        if (uri == null) {
+            viewModel.onBackupSaveCancelled()
+            return@rememberLauncherForActivityResult
+        }
+        val saved = runCatching {
+            context.contentResolver.openOutputStream(uri)?.use { output ->
+                output.write(uiState.backupJson.toByteArray(Charsets.UTF_8))
+            } ?: error("Unable to open output stream.")
+        }.isSuccess
+        viewModel.onBackupSaveResult(uri.toString(), saved)
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val payload = runCatching {
+            context.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { reader ->
+                reader.readText()
+            }.orEmpty()
+        }.getOrDefault("")
+        viewModel.onImportBackupPayload(payload)
+    }
 
     LaunchedEffect(uiState.userMessage) {
         uiState.userMessage?.let { message ->
             snackbarHostState.showSnackbar(message)
             viewModel.onMessageConsumed()
+        }
+    }
+
+    LaunchedEffect(uiState.pendingExportFileName) {
+        uiState.pendingExportFileName?.let { fileName ->
+            exportLauncher.launch(fileName)
         }
     }
 
@@ -76,7 +115,13 @@ fun SettingsRoute(
         onEncryptedBackupsChanged = viewModel::onEncryptedBackupsChanged,
         onExportBackup = viewModel::onExportBackup,
         onImportPayloadChanged = viewModel::onImportPayloadChanged,
-        onImportBackup = viewModel::onImportBackup,
+        onImportBackup = {
+            if (uiState.importPayload.isNotBlank()) {
+                viewModel.onImportBackup()
+            } else {
+                importLauncher.launch(arrayOf("application/octet-stream", "application/json", "application/x-linknest-backup"))
+            }
+        },
         onRunHealthCheck = viewModel::onRunHealthCheck,
     )
 }
@@ -122,7 +167,11 @@ private fun SettingsScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 item {
-                    GlassPanel {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                    ) {
                         Text(
                             text = "Tools",
                             style = MaterialTheme.typography.titleMedium,

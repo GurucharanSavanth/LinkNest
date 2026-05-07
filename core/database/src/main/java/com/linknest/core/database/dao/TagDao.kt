@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.linknest.core.database.entity.TagEntity
 import com.linknest.core.database.entity.WebsiteTagCrossRefEntity
 import com.linknest.core.database.model.TagUsageRow
@@ -16,6 +17,7 @@ interface TagDao {
     suspend fun insertTag(entity: TagEntity): Long
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
+    @Transaction
     suspend fun insertCrossRefs(crossRefs: List<WebsiteTagCrossRefEntity>)
 
     @Query(
@@ -83,6 +85,9 @@ interface TagDao {
     @Query("DELETE FROM website_tag_cross_ref WHERE website_id = :websiteId")
     suspend fun deleteTagsForWebsite(websiteId: Long)
 
+    @Query("DELETE FROM website_tag_cross_ref")
+    suspend fun deleteAllCrossRefs()
+
     @Query("DELETE FROM website_tag_cross_ref WHERE website_id = :websiteId AND tag_id = :tagId")
     suspend fun deleteTagFromWebsite(
         websiteId: Long,
@@ -100,4 +105,7 @@ interface TagDao {
         """,
     )
     suspend fun deleteTagIfUnused(tagId: Long): Int
+
+    @Query("DELETE FROM tags")
+    suspend fun deleteAllTags()
 }

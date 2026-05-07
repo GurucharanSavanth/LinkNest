@@ -15,4 +15,52 @@
     <string name="shortcut_add_long">Capture a new website in LinkNest</string>
     <string name="shortcut_search_short">Search</string>
     <string name="shortcut_search_long">Search your LinkNest library</string>
+
+    <!-- Dashboard -->
+    <string name="search_links_hint">Search links...</string>
+    <string name="delete_website">Delete website</string>
+    <string name="delete_category">Delete category</string>
+    <string name="pinned_section">Pinned</string>
+
+    <!-- Add/Edit -->
+    <string name="url_input_title">URL input</string>
+    <string name="category_title">Category</string>
+    <string name="tags_title">Tags</string>
+    <string name="selected_tags">Selected tags</string>
+    <string name="matching_tags">Matching tags</string>
+    <string name="existing_tags">Existing tags</string>
+    <string name="create_category">Create category</string>
+    <string name="add_category">Add category</string>
+    <string name="create_tag">Create tag</string>
+    <string name="website_url">Website URL</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="tools_title">Tools</string>
+    <string name="integrity_center">Integrity Center</string>
+    <string name="health_report">Health Report</string>
+    <string name="tile_density_title">Tile Density</string>
+    <string name="backup_restore_title">Backup &amp; Restore</string>
+    <string name="export_backup">Export Backup</string>
+    <string name="export_json">Export JSON</string>
+    <string name="import_json">Import JSON</string>
+    <string name="health_monitor_title">Health Monitor</string>
+    <string name="run_health_check">Run health check</string>
+    <string name="background_health_monitoring">Background health monitoring</string>
+    <string name="background_health_description">Allow periodic health checks to run in the background with network constraints.</string>
+    <string name="encrypted_backup_exports">Encrypted backup exports</string>
+    <string name="encrypted_backup_description">Use Android Keystore-backed AES-GCM encryption for exported backup payloads.</string>
+    <string name="backup_payload_label">Backup payload (.json or encrypted .lnen)</string>
+    <string name="last_export">Last export: %s</string>
+
+    <!-- Health Status -->
+    <string name="status_good">Good</string>
+    <string name="status_blocked">Blocked</string>
+    <string name="status_login">Login</string>
+    <string name="status_redirected">Redirected</string>
+    <string name="status_dns_failed">DNS failed</string>
+    <string name="status_tls_issue">TLS issue</string>
+    <string name="status_dead">Dead</string>
+    <string name="status_timeout">Timeout</string>
+    <string name="status_unknown">Unknown</string>
 </resources>

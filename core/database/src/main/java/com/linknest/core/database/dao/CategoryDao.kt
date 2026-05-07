@@ -7,6 +7,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import com.linknest.core.database.entity.CategoryEntity
 import com.linknest.core.database.model.CategoryWithWebsitesEntity
+import com.linknest.core.model.IconType
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -91,7 +92,7 @@ interface CategoryDao {
         categoryId: Long,
         name: String,
         colorHex: String,
-        iconType: com.linknest.core.model.IconType,
+        iconType: IconType,
         iconValue: String?,
         updatedAt: Long,
     )

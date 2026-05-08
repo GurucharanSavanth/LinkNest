@@ -175,7 +175,7 @@ class OfflineFirstBackupRepository @Inject constructor(
                     tileSizeDp = preferences.tileSizeDp,
                     tileDensityMode = preferences.tileDensityMode.name,
                     backgroundHealthChecksEnabled = preferences.backgroundHealthChecksEnabled,
-                    encryptedBackupsEnabled = preferences.encryptedBackupsEnabled,
+                    encryptedBackupsEnabled = false,
                 ),
             )
         }
@@ -441,7 +441,6 @@ class OfflineFirstBackupRepository @Inject constructor(
             tileSizeDp = tileSizeDp,
             tileDensityMode = runCatching { TileDensityMode.valueOf(tileDensityMode) }.getOrDefault(TileDensityMode.ADAPTIVE),
             backgroundHealthChecksEnabled = backgroundHealthChecksEnabled,
-            encryptedBackupsEnabled = encryptedBackupsEnabled,
         )
 
     private companion object {

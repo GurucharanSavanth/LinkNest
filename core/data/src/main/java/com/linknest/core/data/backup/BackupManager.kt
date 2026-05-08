@@ -12,15 +12,15 @@ class BackupManager @Inject constructor(
     private val serializer: BackupSerializer,
     private val fileManager: BackupFileManager,
 ) {
-    suspend fun export(snapshot: BackupSnapshot, encrypted: Boolean): BackupArtifact =
+    suspend fun export(snapshot: BackupSnapshot, encrypted: Boolean = false): BackupArtifact =
         withContext(ioDispatcher) {
-            val pkg = serializer.serialize(snapshot, encrypted)
+            val pkg = serializer.serialize(snapshot)
             val staged = runCatching { fileManager.stageBackup(pkg) }.getOrNull()
             BackupArtifact(
                 fileName = pkg.fileName,
                 filePath = staged?.absolutePath,
                 json = pkg.payload,
-                isEncrypted = pkg.isEncrypted,
+                isEncrypted = false,
                 checksum = pkg.checksum,
             )
         }

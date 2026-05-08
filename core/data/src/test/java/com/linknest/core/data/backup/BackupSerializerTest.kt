@@ -13,8 +13,7 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class BackupSerializerTest {
-    private val crypto = BackupCryptoManager()
-    private val serializer = BackupSerializer(crypto)
+    private val serializer = BackupSerializer()
 
     @Test
     fun deserialize_v2Payload_preservesFullSnapshot() {
@@ -59,7 +58,7 @@ class BackupSerializerTest {
     fun serialize_roundTrip_unencrypted() {
         val snapshot = serializer.deserialize(snapshotJson())
 
-        val pkg = serializer.serialize(snapshot, encrypted = false)
+        val pkg = serializer.serialize(snapshot)
         val restored = serializer.deserialize(pkg.payload)
 
         assertEquals(snapshot.categories.size, restored.categories.size)

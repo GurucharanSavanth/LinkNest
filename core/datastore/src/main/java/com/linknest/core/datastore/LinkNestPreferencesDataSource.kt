@@ -25,11 +25,7 @@ class LinkNestPreferencesDataSource @Inject constructor(
 ) {
     val userPreferences: Flow<UserPreferences> = dataStore.data
         .catch { throwable ->
-            if (throwable is IOException) {
-                emit(emptyPreferences())
-            } else {
-                throw throwable
-            }
+            if (throwable is IOException) emit(emptyPreferences()) else throw throwable
         }
         .map { preferences ->
             UserPreferences(
@@ -41,64 +37,40 @@ class LinkNestPreferencesDataSource @Inject constructor(
                     ?.let { runCatching { TileDensityMode.valueOf(it) }.getOrNull() }
                     ?: TileDensityMode.ADAPTIVE,
                 backgroundHealthChecksEnabled = preferences[BACKGROUND_HEALTH_CHECKS_ENABLED] ?: true,
-                encryptedBackupsEnabled = preferences[ENCRYPTED_BACKUPS_ENABLED] ?: true,
                 backupFolderUri = preferences[BACKUP_FOLDER_URI],
             )
         }
 
     suspend fun setLayoutMode(layoutMode: LayoutMode) = withContext(ioDispatcher) {
-        dataStore.edit { preferences ->
-            preferences[LAYOUT_MODE] = layoutMode.name
-        }
+        dataStore.edit { it[LAYOUT_MODE] = layoutMode.name }
     }
 
     suspend fun setTileSizeDp(tileSizeDp: Int) = withContext(ioDispatcher) {
-        dataStore.edit { preferences ->
-            preferences[TILE_SIZE_DP] = tileSizeDp
-        }
+        dataStore.edit { it[TILE_SIZE_DP] = tileSizeDp }
     }
 
     suspend fun setTileDensityMode(tileDensityMode: TileDensityMode) = withContext(ioDispatcher) {
-        dataStore.edit { preferences ->
-            preferences[TILE_DENSITY_MODE] = tileDensityMode.name
-        }
+        dataStore.edit { it[TILE_DENSITY_MODE] = tileDensityMode.name }
     }
 
     suspend fun setBackgroundHealthChecksEnabled(enabled: Boolean) = withContext(ioDispatcher) {
-        dataStore.edit { preferences ->
-            preferences[BACKGROUND_HEALTH_CHECKS_ENABLED] = enabled
-        }
-    }
-
-    suspend fun setEncryptedBackupsEnabled(enabled: Boolean) = withContext(ioDispatcher) {
-        dataStore.edit { preferences ->
-            preferences[ENCRYPTED_BACKUPS_ENABLED] = enabled
-        }
+        dataStore.edit { it[BACKGROUND_HEALTH_CHECKS_ENABLED] = enabled }
     }
 
     suspend fun setBackupFolderUri(uri: String?) = withContext(ioDispatcher) {
-        dataStore.edit { preferences ->
-            if (uri == null) {
-                preferences.remove(BACKUP_FOLDER_URI)
-            } else {
-                preferences[BACKUP_FOLDER_URI] = uri
-            }
+        dataStore.edit { prefs ->
+            if (uri == null) prefs.remove(BACKUP_FOLDER_URI) else prefs[BACKUP_FOLDER_URI] = uri
         }
     }
 
     suspend fun replaceUserPreferences(userPreferences: UserPreferences) = withContext(ioDispatcher) {
-        dataStore.edit { preferences ->
-            preferences[LAYOUT_MODE] = userPreferences.layoutMode.name
-            preferences[TILE_SIZE_DP] = userPreferences.tileSizeDp
-            preferences[TILE_DENSITY_MODE] = userPreferences.tileDensityMode.name
-            preferences[BACKGROUND_HEALTH_CHECKS_ENABLED] = userPreferences.backgroundHealthChecksEnabled
-            preferences[ENCRYPTED_BACKUPS_ENABLED] = userPreferences.encryptedBackupsEnabled
+        dataStore.edit { prefs ->
+            prefs[LAYOUT_MODE] = userPreferences.layoutMode.name
+            prefs[TILE_SIZE_DP] = userPreferences.tileSizeDp
+            prefs[TILE_DENSITY_MODE] = userPreferences.tileDensityMode.name
+            prefs[BACKGROUND_HEALTH_CHECKS_ENABLED] = userPreferences.backgroundHealthChecksEnabled
             val folderUri = userPreferences.backupFolderUri
-            if (folderUri != null) {
-                preferences[BACKUP_FOLDER_URI] = folderUri
-            } else {
-                preferences.remove(BACKUP_FOLDER_URI)
-            }
+            if (folderUri != null) prefs[BACKUP_FOLDER_URI] = folderUri else prefs.remove(BACKUP_FOLDER_URI)
         }
     }
 
@@ -107,7 +79,6 @@ class LinkNestPreferencesDataSource @Inject constructor(
         val TILE_SIZE_DP = intPreferencesKey("tile_size_dp")
         val TILE_DENSITY_MODE = stringPreferencesKey("tile_density_mode")
         val BACKGROUND_HEALTH_CHECKS_ENABLED = booleanPreferencesKey("background_health_checks_enabled")
-        val ENCRYPTED_BACKUPS_ENABLED = booleanPreferencesKey("encrypted_backups_enabled")
         val BACKUP_FOLDER_URI = stringPreferencesKey("backup_folder_uri")
     }
 }

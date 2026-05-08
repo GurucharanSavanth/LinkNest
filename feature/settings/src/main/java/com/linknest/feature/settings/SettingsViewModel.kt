@@ -17,7 +17,6 @@ import com.linknest.core.data.usecase.ImportDataUseCase
 import com.linknest.core.data.usecase.ObserveUserPreferencesUseCase
 import com.linknest.core.data.usecase.UpdateBackgroundHealthChecksUseCase
 import com.linknest.core.data.usecase.UpdateBackupFolderUriUseCase
-import com.linknest.core.data.usecase.UpdateEncryptedBackupsUseCase
 import com.linknest.core.data.usecase.UpdateTileDensityModeUseCase
 import com.linknest.core.data.usecase.UpdateTileSizeUseCase
 import com.linknest.core.model.HealthReportItem
@@ -69,7 +68,6 @@ class SettingsViewModel @Inject constructor(
     private val updateTileSizeUseCase: UpdateTileSizeUseCase,
     private val updateTileDensityModeUseCase: UpdateTileDensityModeUseCase,
     private val updateBackgroundHealthChecksUseCase: UpdateBackgroundHealthChecksUseCase,
-    private val updateEncryptedBackupsUseCase: UpdateEncryptedBackupsUseCase,
     private val updateBackupFolderUriUseCase: UpdateBackupFolderUriUseCase,
     private val exportDataUseCase: ExportDataUseCase,
     private val importDataUseCase: ImportDataUseCase,
@@ -98,7 +96,6 @@ class SettingsViewModel @Inject constructor(
     fun onTileDensityModeSelected(mode: TileDensityMode) = viewModelScope.launch { updateTileDensityModeUseCase(mode) }
     fun onTileSizeSelected(sizeDp: Int) = viewModelScope.launch { updateTileSizeUseCase(sizeDp) }
     fun onBackgroundHealthChecksChanged(enabled: Boolean) = viewModelScope.launch { updateBackgroundHealthChecksUseCase(enabled) }
-    fun onEncryptedBackupsChanged(enabled: Boolean) = viewModelScope.launch { updateEncryptedBackupsUseCase(enabled) }
 
     fun onBackupFolderSelected(uri: String?) {
         viewModelScope.launch {
@@ -116,15 +113,14 @@ class SettingsViewModel @Inject constructor(
             _uiState.update { it.copy(exportStatus = ExportStatus.Building, userMessage = null) }
             runCatching {
                 val snapshot = exportDataUseCase()
-                val encrypted = _uiState.value.preferences.encryptedBackupsEnabled
-                val pkg = backupSerializer.serialize(snapshot, encrypted)
+                val pkg = backupSerializer.serialize(snapshot)
                 val staged = backupFileManager.stageBackup(pkg)
                 val info = backupFileManager.getStagedBackupInfo()
                 _uiState.update {
                     it.copy(
                         exportStatus = ExportStatus.ReadyToSave(pkg),
                         stagedInfo = info,
-                        userMessage = if (encrypted) "Encrypted backup ready. Choose where to save." else "Backup ready. Choose where to save.",
+                        userMessage = "Backup ready. Choose where to save.",
                     )
                 }
             }.onFailure { e ->

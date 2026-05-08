@@ -9,7 +9,6 @@ data class UserPreferences(
     val tileSizeDp: Int = DEFAULT_TILE_SIZE_DP,
     val tileDensityMode: TileDensityMode = TileDensityMode.ADAPTIVE,
     val backgroundHealthChecksEnabled: Boolean = true,
-    val encryptedBackupsEnabled: Boolean = true,
     val backupFolderUri: String? = null,
 ) {
     companion object {
@@ -20,7 +19,7 @@ data class UserPreferences(
         get() = when (tileDensityMode) {
             TileDensityMode.COMPACT -> 132
             TileDensityMode.COMFORTABLE -> 180
-            TileDensityMode.ADAPTIVE -> tileSizeDp.coerceIn(144, 196)
+            TileDensityMode.ADAPTIVE -> 160
         }
 }
 
@@ -120,6 +119,7 @@ data class DashboardModel(
     val layoutMode: LayoutMode = LayoutMode.LIST,
     val tileSizeDp: Int = UserPreferences.DEFAULT_TILE_SIZE_DP,
     val tileDensityMode: TileDensityMode = TileDensityMode.ADAPTIVE,
+    val adaptiveGridMinSizeDp: Int = 160,
 ) {
     val pinnedSection: DashboardSmartSection?
         get() = smartSections.firstOrNull { it.id == "pinned" }

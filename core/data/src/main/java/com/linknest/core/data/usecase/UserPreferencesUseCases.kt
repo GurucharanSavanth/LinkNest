@@ -45,14 +45,6 @@ class UpdateBackgroundHealthChecksUseCase @Inject constructor(
     }
 }
 
-class UpdateEncryptedBackupsUseCase @Inject constructor(
-    private val userPreferencesRepository: UserPreferencesRepository,
-) {
-    suspend operator fun invoke(enabled: Boolean) {
-        userPreferencesRepository.setEncryptedBackupsEnabled(enabled)
-    }
-}
-
 class UpdateBackupFolderUriUseCase @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
 ) {

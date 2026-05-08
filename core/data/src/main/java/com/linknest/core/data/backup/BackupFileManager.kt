@@ -32,13 +32,9 @@ class BackupFileManager @Inject constructor(
 ) {
     fun stageBackup(pkg: BackupPackage): File {
         val dir = LinkNestStorage.backupStagingDirectory(context).apply { mkdirs() }
-        val ext = if (pkg.isEncrypted) "lnen" else "json"
-        val file = File(dir, "latest-backup.$ext")
-        // Remove any old staging files with different extension
+        val file = File(dir, "latest-backup.json")
         dir.listFiles()?.forEach { f ->
-            if (f.name.startsWith("latest-backup.") && f.name != file.name) {
-                f.delete()
-            }
+            if (f.name.startsWith("latest-backup.") && f.name != file.name) f.delete()
         }
         file.writeText(pkg.payload, Charsets.UTF_8)
         return file
@@ -54,12 +50,11 @@ class BackupFileManager @Inject constructor(
     fun getStagedBackupInfo(): StagedBackupInfo? {
         val file = getStagedBackup() ?: return null
         val date = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(file.lastModified()))
-        val ext = file.extension.uppercase()
         val sizeKb = file.length() / 1024
         return StagedBackupInfo(
             file = file,
             dateLabel = date,
-            typeLabel = if (ext == "LNEN") "Encrypted" else "JSON",
+            typeLabel = "JSON",
             sizeLabel = "${sizeKb}KB",
         )
     }

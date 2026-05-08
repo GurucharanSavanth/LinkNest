@@ -323,7 +323,7 @@ private fun DashboardScreen(
                         CategorySection(
                             category = category,
                             layoutMode = uiState.dashboard.layoutMode,
-                            adaptiveMinTileWidth = uiState.dashboard.tileSizeDp.coerceIn(144, 196),
+                            adaptiveMinTileWidth = uiState.dashboard.adaptiveGridMinSizeDp,
                             focusedCategoryId = uiState.focusedCategoryId,
                             focusedWebsiteId = uiState.focusedWebsiteId,
                             onToggleCategory = { onToggleCategory(category.id) },

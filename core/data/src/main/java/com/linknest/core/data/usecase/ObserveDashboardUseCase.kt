@@ -122,6 +122,7 @@ class ObserveDashboardUseCase @Inject constructor(
             layoutMode = preferences.layoutMode,
             tileSizeDp = preferences.tileSizeDp,
             tileDensityMode = preferences.tileDensityMode,
+            adaptiveGridMinSizeDp = preferences.adaptiveGridMinSizeDp,
         )
     }
 

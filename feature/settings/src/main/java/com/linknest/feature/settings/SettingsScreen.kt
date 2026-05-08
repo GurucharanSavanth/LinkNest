@@ -19,7 +19,6 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.HealthAndSafety
-import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Upload
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material3.AlertDialog
@@ -88,7 +87,7 @@ fun SettingsRoute(
     }
 
     val saveLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("application/octet-stream"),
+        contract = ActivityResultContracts.CreateDocument("application/json"),
     ) { uri ->
         if (uri == null) {
             viewModel.onExportSaveCancelled()
@@ -127,9 +126,7 @@ fun SettingsRoute(
         onOpenIntegrityCenter = onOpenIntegrityCenter,
         onOpenHealthReport = onOpenHealthReport,
         onTileDensityModeSelected = viewModel::onTileDensityModeSelected,
-        onTileSizeSelected = viewModel::onTileSizeSelected,
         onBackgroundHealthChecksChanged = viewModel::onBackgroundHealthChecksChanged,
-        onEncryptedBackupsChanged = viewModel::onEncryptedBackupsChanged,
         onSetBackupFolder = { backupFolderLauncher.launch(null) },
         onClearBackupFolder = { viewModel.onBackupFolderSelected(null) },
         onExportBackup = viewModel::onExportBackup,
@@ -150,9 +147,7 @@ private fun SettingsScreen(
     onOpenIntegrityCenter: () -> Unit,
     onOpenHealthReport: () -> Unit,
     onTileDensityModeSelected: (TileDensityMode) -> Unit,
-    onTileSizeSelected: (Int) -> Unit,
     onBackgroundHealthChecksChanged: (Boolean) -> Unit,
-    onEncryptedBackupsChanged: (Boolean) -> Unit,
     onSetBackupFolder: () -> Unit,
     onClearBackupFolder: () -> Unit,
     onExportBackup: () -> Unit,
@@ -219,22 +214,12 @@ private fun SettingsScreen(
                                 )
                             }
                         }
-                    }
-                }
-
-                item {
-                    GlassPanel {
-                        Text("Adaptive Tile Baseline", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Spacer(modifier = Modifier.height(12.dp))
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            listOf(132, 148, 164, 180, 196).forEach { size ->
-                                FilterChip(
-                                    selected = uiState.preferences.tileSizeDp == size,
-                                    onClick = { onTileSizeSelected(size) },
-                                    label = { Text("${size}dp") },
-                                )
-                            }
-                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            "Controls how many tiles fit per row in grid mode.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
 
@@ -246,14 +231,6 @@ private fun SettingsScreen(
                             checked = uiState.preferences.backgroundHealthChecksEnabled,
                             icon = { Icon(Icons.Rounded.HealthAndSafety, contentDescription = null) },
                             onCheckedChange = onBackgroundHealthChecksChanged,
-                        )
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-                        SettingToggle(
-                            title = "Encrypted backup exports",
-                            description = "AES-256-GCM encryption via Android Keystore. Device-specific — encrypted backups only import on same device.",
-                            checked = uiState.preferences.encryptedBackupsEnabled,
-                            icon = { Icon(Icons.Rounded.Lock, contentDescription = null) },
-                            onCheckedChange = onEncryptedBackupsChanged,
                         )
                     }
                 }
@@ -367,7 +344,7 @@ private fun BackupRestorePanel(
                 } else {
                     Icon(Icons.Rounded.Upload, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.padding(start = 6.dp))
-                    Text(if (uiState.preferences.encryptedBackupsEnabled) "Export Encrypted" else "Export JSON")
+                    Text("Export Backup")
                 }
             }
         }
@@ -458,14 +435,6 @@ private fun BackupRestorePanel(
             }
         }
 
-        if (uiState.preferences.encryptedBackupsEnabled) {
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                "Encrypted backups only import on this device. Disable encryption before importing on another device.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
     }
 }
 

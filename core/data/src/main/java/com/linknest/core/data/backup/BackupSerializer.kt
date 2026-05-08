@@ -32,35 +32,27 @@ import org.json.JSONObject
 data class BackupPackage(
     val payload: String,
     val fileName: String,
-    val isEncrypted: Boolean,
     val checksum: String,
 )
 
 @Singleton
-class BackupSerializer @Inject constructor(
-    private val crypto: BackupCryptoManager,
-) {
-    fun serialize(snapshot: BackupSnapshot, encrypted: Boolean): BackupPackage {
+class BackupSerializer @Inject constructor() {
+    fun serialize(snapshot: BackupSnapshot): BackupPackage {
         val json = buildSnapshotJson(snapshot).toString(2)
         require(json.length <= MAX_CHARS) { "Backup payload is too large to export safely." }
         val compressed = gzip(json)
         val checksum = compressed.sha256()
-        val envelope = buildEnvelope(snapshot, compressed, checksum, encrypted).toString(2)
-        val payload = if (encrypted) crypto.encrypt(envelope) else envelope
-        val ext = if (encrypted) "lnen" else "json"
+        val envelope = buildEnvelope(snapshot, compressed, checksum).toString(2)
         return BackupPackage(
-            payload = payload,
-            fileName = "linknest-backup-${snapshot.exportedAt}.$ext",
-            isEncrypted = encrypted,
+            payload = envelope,
+            fileName = "linknest-backup-${snapshot.exportedAt}.json",
             checksum = checksum,
         )
     }
 
     fun deserialize(payload: String): BackupSnapshot {
         require(payload.length <= MAX_CHARS) { "Backup payload is too large." }
-        val decrypted = crypto.decryptIfNeeded(payload)
-        require(decrypted.length <= MAX_CHARS) { "Backup payload too large after decryption." }
-        val root = JSONObject(decrypted)
+        val root = JSONObject(payload)
         val snapshotJson = if (root.optString("kind") == ENVELOPE_KIND) {
             parseEnvelope(root)
         } else {
@@ -73,7 +65,6 @@ class BackupSerializer @Inject constructor(
         snapshot: BackupSnapshot,
         compressed: ByteArray,
         checksum: String,
-        encrypted: Boolean,
     ): JSONObject = JSONObject().apply {
         put("kind", ENVELOPE_KIND)
         put("meta", JSONObject().apply {
@@ -82,7 +73,6 @@ class BackupSerializer @Inject constructor(
             put("schemaVersion", snapshot.schemaVersion)
             put("exportedAt", snapshot.exportedAt)
             put("checksum", checksum)
-            put("encryption", if (encrypted) "AES-256-GCM" else "none")
             put("compression", "GZIP")
         })
         put("data", Base64.getEncoder().encodeToString(compressed))
@@ -91,13 +81,13 @@ class BackupSerializer @Inject constructor(
     private fun parseEnvelope(root: JSONObject): JSONObject {
         val meta = root.getJSONObject("meta")
         val version = meta.getInt("version")
-        require(version <= FORMAT_VERSION) { "Unsupported backup format version $version. Update the app." }
-        require(meta.getString("compression") == "GZIP") { "Unsupported backup compression." }
+        require(version <= FORMAT_VERSION) { "Unsupported backup format version $version. Please update the app." }
+        val compression = meta.optString("compression", "GZIP")
+        require(compression == "GZIP") { "Unsupported backup compression: $compression" }
         val compressed = Base64.getDecoder().decode(root.getString("data"))
         val actualChecksum = compressed.sha256()
-        require(meta.getString("checksum") == actualChecksum) {
-            "Backup file is corrupted (checksum mismatch). Do not use this file."
-        }
+        val storedChecksum = meta.getString("checksum")
+        require(storedChecksum == actualChecksum) { "Backup file is corrupted (checksum mismatch)." }
         val json = gunzip(compressed)
         require(json.length <= MAX_CHARS) { "Backup payload too large after decompression." }
         return JSONObject(json)

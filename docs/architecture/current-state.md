@@ -1,6 +1,6 @@
 # Current State
 
-LinkNest is an offline-first modular Android application. The app now launches directly into the dashboard. Startup background work is coordinated separately by `DeferredStartupCoordinator`, which observes `backgroundHealthChecksEnabled` from DataStore and syncs periodic WorkManager health work through `HealthWorkScheduler`.
+LinkNest is an offline-first modular Android application. The app now launches directly into the dashboard. Startup background work is coordinated separately by `DeferredStartupCoordinator`, which observes `backgroundHealthChecksEnabled` from DataStore and syncs periodic WorkManager health work through `HealthWorkScheduler`. Periodic health work is constrained to unmetered network, charging, and non-low-battery states.
 
 ## Screen Flow
 

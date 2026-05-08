@@ -12,12 +12,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.HealthAndSafety
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Upload
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -32,15 +38,19 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -77,69 +87,35 @@ fun SettingsRoute(
         viewModel.onBackupFolderSelected(uri?.toString())
     }
 
-    val exportLauncher = rememberLauncherForActivityResult(
+    val saveLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/octet-stream"),
     ) { uri ->
         if (uri == null) {
-            viewModel.onBackupSaveCancelled()
-            return@rememberLauncherForActivityResult
+            viewModel.onExportSaveCancelled()
+        } else {
+            viewModel.onSaveExportToUri(context.contentResolver, uri)
         }
-        val saved = runCatching {
-            context.contentResolver.openOutputStream(uri)?.use { output ->
-                output.write(uiState.backupJson.toByteArray(Charsets.UTF_8))
-            } ?: error("Unable to open output stream.")
-        }.isSuccess
-        viewModel.onBackupSaveResult(uri.toString(), saved)
     }
 
-    val importLauncher = rememberLauncherForActivityResult(
+    val importFileLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
     ) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        val payload = runCatching {
-            context.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { reader ->
-                reader.readText()
-            }.orEmpty()
-        }.getOrDefault("")
-        viewModel.onImportBackupPayload(payload)
+        if (uri != null) {
+            viewModel.onImportFromUri(context.contentResolver, uri)
+        }
     }
 
     LaunchedEffect(uiState.userMessage) {
-        uiState.userMessage?.let { message ->
-            snackbarHostState.showSnackbar(message)
+        uiState.userMessage?.let { msg ->
+            snackbarHostState.showSnackbar(msg)
             viewModel.onMessageConsumed()
         }
     }
 
-    LaunchedEffect(uiState.pendingExportFileName) {
-        uiState.pendingExportFileName?.let { fileName ->
-            val folderUriStr = uiState.preferences.backupFolderUri
-            if (folderUriStr != null) {
-                val treeUri = android.net.Uri.parse(folderUriStr)
-                val docUri = runCatching {
-                    android.provider.DocumentsContract.createDocument(
-                        context.contentResolver,
-                        android.provider.DocumentsContract.buildDocumentUriUsingTree(
-                            treeUri,
-                            android.provider.DocumentsContract.getTreeDocumentId(treeUri),
-                        ),
-                        "application/octet-stream",
-                        fileName,
-                    )
-                }.getOrNull()
-                if (docUri != null) {
-                    val saved = runCatching {
-                        context.contentResolver.openOutputStream(docUri)?.use { output ->
-                            output.write(uiState.backupJson.toByteArray(Charsets.UTF_8))
-                        } ?: error("null stream")
-                    }.isSuccess
-                    viewModel.onBackupSaveResult(docUri.toString(), saved)
-                } else {
-                    exportLauncher.launch(fileName)
-                }
-            } else {
-                exportLauncher.launch(fileName)
-            }
+    LaunchedEffect(uiState.exportStatus) {
+        val status = uiState.exportStatus
+        if (status is ExportStatus.ReadyToSave) {
+            saveLauncher.launch(status.pkg.fileName)
         }
     }
 
@@ -157,15 +133,9 @@ fun SettingsRoute(
         onSetBackupFolder = { backupFolderLauncher.launch(null) },
         onClearBackupFolder = { viewModel.onBackupFolderSelected(null) },
         onExportBackup = viewModel::onExportBackup,
-        onImportPayloadChanged = viewModel::onImportPayloadChanged,
-        onImportBackup = {
-            when {
-                uiState.importPayload.isNotBlank() -> viewModel.onImportBackup()
-                uiState.backupJson.isNotBlank() -> viewModel.onImportBackupPayload(uiState.backupJson)
-                uiState.hasStagedBackup -> viewModel.onImportStagedBackup()
-                else -> importLauncher.launch(arrayOf("*/*"))
-            }
-        },
+        onImportFromStaged = viewModel::onImportFromStaged,
+        onImportFromFile = { importFileLauncher.launch(arrayOf("*/*")) },
+        onImportFromText = viewModel::onImportFromText,
         onRunHealthCheck = viewModel::onRunHealthCheck,
     )
 }
@@ -186,10 +156,23 @@ private fun SettingsScreen(
     onSetBackupFolder: () -> Unit,
     onClearBackupFolder: () -> Unit,
     onExportBackup: () -> Unit,
-    onImportPayloadChanged: (String) -> Unit,
-    onImportBackup: () -> Unit,
+    onImportFromStaged: () -> Unit,
+    onImportFromFile: () -> Unit,
+    onImportFromText: (String) -> Unit,
     onRunHealthCheck: () -> Unit,
 ) {
+    var showPasteDialog by rememberSaveable { mutableStateOf(false) }
+
+    if (showPasteDialog) {
+        PasteImportDialog(
+            onDismiss = { showPasteDialog = false },
+            onImport = { text ->
+                showPasteDialog = false
+                onImportFromText(text)
+            },
+        )
+    }
+
     LinkNestGradientBackground(modifier = modifier) {
         Scaffold(
             containerColor = Color.Transparent,
@@ -214,35 +197,20 @@ private fun SettingsScreen(
             ) {
                 item {
                     GlassPanel {
-                        Text(
-                            text = "Tools",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
+                        Text("Tools", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(modifier = Modifier.height(12.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            OutlinedButton(onClick = onOpenIntegrityCenter) {
-                                Text("Integrity Center")
-                            }
-                            OutlinedButton(onClick = onOpenHealthReport) {
-                                Text("Health Report")
-                            }
+                            OutlinedButton(onClick = onOpenIntegrityCenter) { Text("Integrity Center") }
+                            OutlinedButton(onClick = onOpenHealthReport) { Text("Health Report") }
                         }
                     }
                 }
 
                 item {
                     GlassPanel {
-                        Text(
-                            text = "Tile Density",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
+                        Text("Tile Density", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(modifier = Modifier.height(12.dp))
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             TileDensityMode.entries.forEach { mode ->
                                 FilterChip(
                                     selected = uiState.preferences.tileDensityMode == mode,
@@ -256,246 +224,295 @@ private fun SettingsScreen(
 
                 item {
                     GlassPanel {
-                        Text(
-                            text = "Adaptive Tile Baseline",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
+                        Text("Adaptive Tile Baseline", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(modifier = Modifier.height(12.dp))
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            listOf(132, 148, 164, 180, 196).forEach { tileSize ->
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            listOf(132, 148, 164, 180, 196).forEach { size ->
                                 FilterChip(
-                                    selected = uiState.preferences.tileSizeDp == tileSize,
-                                    onClick = { onTileSizeSelected(tileSize) },
-                                    label = { Text("${tileSize}dp") },
+                                    selected = uiState.preferences.tileSizeDp == size,
+                                    onClick = { onTileSizeSelected(size) },
+                                    label = { Text("${size}dp") },
                                 )
                             }
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Dashboard still adapts to content, icon source, and screen width. This sets the minimum density target.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
                     }
                 }
 
                 item {
                     GlassPanel {
-                        SettingToggleRow(
+                        SettingToggle(
                             title = "Background health monitoring",
-                            description = "Allow periodic health checks to run in the background with network constraints.",
+                            description = "Periodic health checks in background with network constraints.",
                             checked = uiState.preferences.backgroundHealthChecksEnabled,
-                            icon = {
-                                Icon(Icons.Rounded.HealthAndSafety, contentDescription = null)
-                            },
+                            icon = { Icon(Icons.Rounded.HealthAndSafety, contentDescription = null) },
                             onCheckedChange = onBackgroundHealthChecksChanged,
                         )
                         HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-                        SettingToggleRow(
+                        SettingToggle(
                             title = "Encrypted backup exports",
-                            description = "Use Android Keystore-backed AES-GCM encryption for exported backup payloads.",
+                            description = "AES-256-GCM encryption via Android Keystore. Device-specific — encrypted backups only import on same device.",
                             checked = uiState.preferences.encryptedBackupsEnabled,
-                            icon = {
-                                Icon(Icons.Rounded.Lock, contentDescription = null)
-                            },
+                            icon = { Icon(Icons.Rounded.Lock, contentDescription = null) },
                             onCheckedChange = onEncryptedBackupsChanged,
                         )
                     }
                 }
 
                 item {
-                    GlassPanel {
-                        Text(
-                            text = "Backup & Restore",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            OutlinedButton(onClick = onExportBackup, enabled = !uiState.isExporting) {
-                                if (uiState.isExporting) {
-                                    CircularProgressIndicator(strokeWidth = 2.dp)
-                                } else {
-                                    Text(if (uiState.preferences.encryptedBackupsEnabled) "Export Backup" else "Export JSON")
-                                }
-                            }
-                            OutlinedButton(onClick = onImportBackup, enabled = !uiState.isImporting) {
-                                if (uiState.isImporting) {
-                                    CircularProgressIndicator(strokeWidth = 2.dp)
-                                } else {
-                                    Text(
-                                        when {
-                                            uiState.importPayload.isNotBlank() -> "Import pasted"
-                                            uiState.backupJson.isNotBlank() -> "Import this export"
-                                            uiState.hasStagedBackup -> "Import last export"
-                                            else -> "Import from file"
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                        uiState.backupFilePath?.let { path ->
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "Last export: $path",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.FolderOpen,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Backup folder",
-                                    fontWeight = FontWeight.SemiBold,
-                                )
-                                val folderUri = uiState.preferences.backupFolderUri
-                                Text(
-                                    text = if (folderUri != null) folderUri else "Not set — picker shown on each export",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = onSetBackupFolder) {
-                                Text(if (uiState.preferences.backupFolderUri != null) "Change folder" else "Set folder")
-                            }
-                            if (uiState.preferences.backupFolderUri != null) {
-                                OutlinedButton(onClick = onClearBackupFolder) {
-                                    Text("Clear")
-                                }
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-                        OutlinedTextField(
-                            value = if (uiState.importPayload.isNotBlank()) uiState.importPayload else uiState.backupJson,
-                            onValueChange = onImportPayloadChanged,
-                            modifier = Modifier.fillMaxWidth(),
-                            label = {
-                            Text(
-                                when {
-                                    uiState.importPayload.isBlank() && uiState.backupJson.isNotBlank() -> "Last export (ready to import)"
-                                    uiState.importPayload.isBlank() && uiState.hasStagedBackup -> "Staged backup available — click Import last export"
-                                    else -> "Paste backup payload to import"
-                                }
-                            )
-                        },
-                        readOnly = uiState.importPayload.isBlank() && (uiState.backupJson.isNotBlank() || uiState.hasStagedBackup),
-                            minLines = 5,
-                        )
-                    }
+                    BackupRestorePanel(
+                        uiState = uiState,
+                        onSetBackupFolder = onSetBackupFolder,
+                        onClearBackupFolder = onClearBackupFolder,
+                        onExportBackup = onExportBackup,
+                        onImportFromStaged = onImportFromStaged,
+                        onImportFromFile = onImportFromFile,
+                        onPasteImport = { showPasteDialog = true },
+                    )
                 }
 
                 item {
                     GlassPanel {
-                    Text(
-                        text = "Health Monitor",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedButton(
-                        onClick = onRunHealthCheck,
-                        enabled = !uiState.isRunningHealthCheck,
-                    ) {
-                        if (uiState.isRunningHealthCheck) {
-                            CircularProgressIndicator(strokeWidth = 2.dp)
-                        } else {
-                            Text("Run health check")
+                        Text("Health Monitor", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedButton(onClick = onRunHealthCheck, enabled = !uiState.isRunningHealthCheck) {
+                            if (uiState.isRunningHealthCheck) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                Spacer(modifier = Modifier.padding(start = 8.dp))
+                                Text("Checking...")
+                            } else {
+                                Text("Run health check")
+                            }
                         }
-                    }
-                    uiState.healthSummary?.let { summary ->
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = summary,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                    if (uiState.latestHealthReport.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "Latest report",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            uiState.latestHealthReport.take(6).forEach { item ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(text = item.title, fontWeight = FontWeight.Medium)
+                        uiState.healthSummary?.let { summary ->
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(summary, style = MaterialTheme.typography.bodySmall)
+                        }
+                        if (uiState.latestHealthReport.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text("Latest report", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                uiState.latestHealthReport.take(6).forEach { item ->
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(item.title, fontWeight = FontWeight.Medium)
+                                            Text(item.normalizedUrl, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
                                         Text(
-                                            text = item.normalizedUrl,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            text = item.status.displayName,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = when (item.status) {
+                                                HealthStatus.OK -> Color(0xFF4CAF50)
+                                                HealthStatus.DEAD, HealthStatus.TIMEOUT -> MaterialTheme.colorScheme.error
+                                                HealthStatus.UNKNOWN -> MaterialTheme.colorScheme.onSurfaceVariant
+                                                else -> Color(0xFFFFC107)
+                                            },
                                         )
                                     }
-                                    Text(
-                                        text = item.status.displayName,
-                                        color = when (item.status) {
-                                            HealthStatus.OK -> Color(0xFF4CAF50)
-                                            HealthStatus.BLOCKED,
-                                            HealthStatus.LOGIN_REQUIRED,
-                                            HealthStatus.REDIRECTED,
-                                            HealthStatus.DNS_FAILED,
-                                            HealthStatus.SSL_ISSUE,
-                                            -> Color(0xFFFFC107)
-                                            HealthStatus.DEAD,
-                                            HealthStatus.TIMEOUT,
-                                            -> MaterialTheme.colorScheme.error
-                                            HealthStatus.UNKNOWN -> MaterialTheme.colorScheme.onSurfaceVariant
-                                        },
-                                        style = MaterialTheme.typography.labelMedium,
-                                    )
                                 }
                             }
                         }
                     }
-                }
                 }
             }
         }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun SettingToggleRow(
+private fun BackupRestorePanel(
+    uiState: SettingsUiState,
+    onSetBackupFolder: () -> Unit,
+    onClearBackupFolder: () -> Unit,
+    onExportBackup: () -> Unit,
+    onImportFromStaged: () -> Unit,
+    onImportFromFile: () -> Unit,
+    onPasteImport: () -> Unit,
+) {
+    GlassPanel {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Backup & Restore", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            if (uiState.exportStatus is ExportStatus.Saved) {
+                Icon(Icons.Rounded.CheckCircle, contentDescription = "Saved", tint = Color(0xFF4CAF50), modifier = Modifier.size(20.dp))
+            }
+        }
+
+        uiState.stagedInfo?.let { info ->
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Last export: ${info.dateLabel}  •  ${info.typeLabel}  •  ${info.sizeLabel}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Export section
+        Text("Export", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Button(
+                onClick = onExportBackup,
+                enabled = !uiState.isExporting && !uiState.isImporting,
+                modifier = Modifier.weight(1f),
+            ) {
+                if (uiState.isExporting) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                } else {
+                    Icon(Icons.Rounded.Upload, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.padding(start = 6.dp))
+                    Text(if (uiState.preferences.encryptedBackupsEnabled) "Export Encrypted" else "Export JSON")
+                }
+            }
+        }
+
+        // Backup folder row
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(Icons.Rounded.FolderOpen, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                val folderUri = uiState.preferences.backupFolderUri
+                Text(
+                    text = if (folderUri != null) "Auto-save folder set" else "No auto-save folder",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = if (folderUri != null) FontWeight.SemiBold else FontWeight.Normal,
+                )
+                if (folderUri != null) {
+                    Text(folderUri.takeLast(48), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            TextButton(onClick = onSetBackupFolder) {
+                Text(if (uiState.preferences.backupFolderUri != null) "Change" else "Set")
+            }
+            if (uiState.preferences.backupFolderUri != null) {
+                TextButton(onClick = onClearBackupFolder) { Text("Clear") }
+            }
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 14.dp))
+
+        // Import section
+        Text("Import", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        when (val status = uiState.importStatus) {
+            is ImportStatus.Running -> {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    Text("Restoring data…", style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+            is ImportStatus.Success -> {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = Color(0xFF4CAF50), modifier = Modifier.size(20.dp))
+                    Text(
+                        "Restored ${status.websiteCount} websites in ${status.categoryCount} categories.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFF4CAF50),
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+            is ImportStatus.Failed -> {
+                Text("Import failed: ${status.reason}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+            else -> Unit
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (uiState.hasStagedBackup) {
+                Button(
+                    onClick = onImportFromStaged,
+                    enabled = !uiState.isImporting && !uiState.isExporting,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(Icons.Rounded.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.padding(start = 6.dp))
+                    Text("Import last export${uiState.stagedInfo?.let { " (${it.dateLabel})" }.orEmpty()}")
+                }
+            }
+            OutlinedButton(
+                onClick = onImportFromFile,
+                enabled = !uiState.isImporting && !uiState.isExporting,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Import from file")
+            }
+            OutlinedButton(
+                onClick = onPasteImport,
+                enabled = !uiState.isImporting && !uiState.isExporting,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Paste backup text")
+            }
+        }
+
+        if (uiState.preferences.encryptedBackupsEnabled) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                "Encrypted backups only import on this device. Disable encryption before importing on another device.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun PasteImportDialog(
+    onDismiss: () -> Unit,
+    onImport: (String) -> Unit,
+) {
+    var text by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Paste backup") },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Backup payload (.json or .lnen)") },
+                minLines = 5,
+                maxLines = 12,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { if (text.isNotBlank()) onImport(text) }, enabled = text.isNotBlank()) {
+                Text("Import")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
+}
+
+@Composable
+private fun SettingToggle(
     title: String,
     description: String,
     checked: Boolean,
     icon: @Composable () -> Unit,
     onCheckedChange: (Boolean) -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         icon()
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = title, fontWeight = FontWeight.SemiBold)
+            Text(title, fontWeight = FontWeight.SemiBold)
             Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Switch(checked = checked, onCheckedChange = onCheckedChange)
     }

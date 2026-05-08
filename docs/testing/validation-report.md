@@ -1,6 +1,26 @@
 # Validation Report
 
-Date: 2026-05-06
+Date: 2026-05-07
+
+## 2026-05-07 Commands Run
+
+- `git status --short`: confirmed clean working tree before this pass.
+- `git diff --check`: PASS; only Git CRLF conversion warnings were printed.
+- `.\gradlew.bat :app:assembleDebug --console=plain`: PASS.
+- `.\gradlew.bat lintDebug --console=plain`: PASS.
+- `.\gradlew.bat test --console=plain`: PASS.
+
+## 2026-05-07 Skipped
+
+- `connectedAndroidTest`: skipped because no connected device/emulator run was requested or verified in this pass.
+- ktlint/detekt: skipped because previous `gradlew tasks` evidence showed no exposed tasks in this repo.
+- Benchmark/macrobenchmark/profiler: skipped because no benchmark infrastructure or connected profiling run was available in this pass.
+
+## 2026-05-07 Known Risks
+
+- Backup/restore v2 hardening remains open; current work only documented gaps.
+- Dashboard minimalist revamp remains open; current work only added stable keys and tile semantics.
+- Performance claims are limited to WorkManager constraint hardening and compile/lint/test evidence; no measured battery, memory, CPU, or startup metrics were captured.
 
 ## Commands Run
 

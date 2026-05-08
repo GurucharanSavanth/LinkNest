@@ -15,3 +15,11 @@ Decision: Allow practical non-web schemes to be stored while keeping metadata fe
 Rationale: Users may need to save app-specific links, but LinkNest should not fetch or probe arbitrary schemes. Normalized HTTP input still upgrades to HTTPS, private/local web targets remain blocked, and custom schemes return warnings.
 
 Validation: `UrlNormalizerTest`, `:core:network:testDebugUnitTest`, `test`, and `:app:assembleDebug` passed.
+
+## 2026-05-07: Background health checks are battery-constrained
+
+Decision: Keep health checks as non-blocking WorkManager maintenance and require unmetered network, charging, and non-low-battery states for periodic execution.
+
+Rationale: Link health checks are useful maintenance, but they should not compete with foreground startup or drain battery on metered/mobile conditions.
+
+Validation: `:app:assembleDebug`, `lintDebug`, and `test` passed on 2026-05-07.

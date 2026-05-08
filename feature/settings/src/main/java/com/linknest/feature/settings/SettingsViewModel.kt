@@ -1,14 +1,19 @@
 package com.linknest.feature.settings
 
-import android.content.Context
+import android.content.ContentResolver
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.linknest.core.action.ActionResult
-import com.linknest.core.action.model.BackupExportPipelineInput
-import com.linknest.core.action.pipeline.BackupExportPipeline
 import com.linknest.core.action.pipeline.HealthCheckPipeline
-import com.linknest.core.action.pipeline.ImportRestorePipeline
-import com.linknest.core.data.backup.BackupManager
+import com.linknest.core.data.backup.BackupFileManager
+import com.linknest.core.data.backup.BackupPackage
+import com.linknest.core.data.backup.BackupSerializer
+import com.linknest.core.data.backup.ReadResult
+import com.linknest.core.data.backup.StagedBackupInfo
+import com.linknest.core.data.backup.WriteResult
+import com.linknest.core.data.usecase.ExportDataUseCase
+import com.linknest.core.data.usecase.ImportDataUseCase
 import com.linknest.core.data.usecase.ObserveUserPreferencesUseCase
 import com.linknest.core.data.usecase.UpdateBackgroundHealthChecksUseCase
 import com.linknest.core.data.usecase.UpdateBackupFolderUriUseCase
@@ -19,7 +24,6 @@ import com.linknest.core.model.HealthReportItem
 import com.linknest.core.model.TileDensityMode
 import com.linknest.core.model.UserPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,271 +31,233 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+
+sealed interface ExportStatus {
+    object Idle : ExportStatus
+    object Building : ExportStatus
+    data class ReadyToSave(val pkg: BackupPackage) : ExportStatus
+    data class Saved(val location: String) : ExportStatus
+    data class Failed(val reason: String) : ExportStatus
+}
+
+sealed interface ImportStatus {
+    object Idle : ImportStatus
+    object Running : ImportStatus
+    data class Success(val websiteCount: Int, val categoryCount: Int) : ImportStatus
+    data class Failed(val reason: String) : ImportStatus
+}
 
 data class SettingsUiState(
     val isLoading: Boolean = true,
     val preferences: UserPreferences = UserPreferences(),
-    val hasStagedBackup: Boolean = false,
-    val isExporting: Boolean = false,
-    val isImporting: Boolean = false,
+    val exportStatus: ExportStatus = ExportStatus.Idle,
+    val importStatus: ImportStatus = ImportStatus.Idle,
+    val stagedInfo: StagedBackupInfo? = null,
     val isRunningHealthCheck: Boolean = false,
-    val backupJson: String = "",
-    val backupFilePath: String? = null,
-    val pendingExportFileName: String? = null,
-    val importPayload: String = "",
-    val healthSummary: String? = null,
     val latestHealthReport: List<HealthReportItem> = emptyList(),
+    val healthSummary: String? = null,
     val userMessage: String? = null,
-)
+) {
+    val isExporting: Boolean get() = exportStatus is ExportStatus.Building
+    val isImporting: Boolean get() = importStatus is ImportStatus.Running
+    val hasStagedBackup: Boolean get() = stagedInfo != null
+}
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    @param:ApplicationContext private val appContext: Context,
     observeUserPreferencesUseCase: ObserveUserPreferencesUseCase,
     private val updateTileSizeUseCase: UpdateTileSizeUseCase,
     private val updateTileDensityModeUseCase: UpdateTileDensityModeUseCase,
     private val updateBackgroundHealthChecksUseCase: UpdateBackgroundHealthChecksUseCase,
     private val updateEncryptedBackupsUseCase: UpdateEncryptedBackupsUseCase,
     private val updateBackupFolderUriUseCase: UpdateBackupFolderUriUseCase,
-    private val backupManager: BackupManager,
-    private val backupExportPipeline: BackupExportPipeline,
-    private val importRestorePipeline: ImportRestorePipeline,
+    private val exportDataUseCase: ExportDataUseCase,
+    private val importDataUseCase: ImportDataUseCase,
+    private val backupSerializer: BackupSerializer,
+    private val backupFileManager: BackupFileManager,
     private val healthCheckPipeline: HealthCheckPipeline,
 ) : ViewModel() {
+
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
     init {
         viewModelScope.launch {
-            observeUserPreferencesUseCase().collect { preferences ->
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        preferences = preferences,
-                    )
-                }
+            observeUserPreferencesUseCase().collect { prefs ->
+                _uiState.update { it.copy(isLoading = false, preferences = prefs) }
             }
         }
         viewModelScope.launch(Dispatchers.IO) {
-            val hasStagedBackup = backupManager.latestStagedBackup(appContext) != null
-            _uiState.update { it.copy(hasStagedBackup = hasStagedBackup) }
+            val info = backupFileManager.getStagedBackupInfo()
+            _uiState.update { it.copy(stagedInfo = info) }
         }
     }
 
-    fun onTileDensityModeSelected(tileDensityMode: TileDensityMode) {
-        viewModelScope.launch {
-            updateTileDensityModeUseCase(tileDensityMode)
-        }
-    }
+    // ── Preferences ──────────────────────────────────────────────────────────
 
-    fun onTileSizeSelected(tileSizeDp: Int) {
-        viewModelScope.launch {
-            updateTileSizeUseCase(tileSizeDp)
-        }
-    }
-
-    fun onImportPayloadChanged(payload: String) {
-        _uiState.update { it.copy(importPayload = payload) }
-    }
-
-    fun onBackgroundHealthChecksChanged(enabled: Boolean) {
-        viewModelScope.launch {
-            updateBackgroundHealthChecksUseCase(enabled)
-        }
-    }
-
-    fun onEncryptedBackupsChanged(enabled: Boolean) {
-        viewModelScope.launch {
-            updateEncryptedBackupsUseCase(enabled)
-        }
-    }
+    fun onTileDensityModeSelected(mode: TileDensityMode) = viewModelScope.launch { updateTileDensityModeUseCase(mode) }
+    fun onTileSizeSelected(sizeDp: Int) = viewModelScope.launch { updateTileSizeUseCase(sizeDp) }
+    fun onBackgroundHealthChecksChanged(enabled: Boolean) = viewModelScope.launch { updateBackgroundHealthChecksUseCase(enabled) }
+    fun onEncryptedBackupsChanged(enabled: Boolean) = viewModelScope.launch { updateEncryptedBackupsUseCase(enabled) }
 
     fun onBackupFolderSelected(uri: String?) {
         viewModelScope.launch {
             updateBackupFolderUriUseCase(uri)
             _uiState.update {
-                it.copy(
-                    userMessage = if (uri != null) "Backup folder set." else "Backup folder cleared.",
-                )
+                it.copy(userMessage = if (uri != null) "Backup folder set." else "Backup folder cleared.")
             }
         }
     }
+
+    // ── Export ───────────────────────────────────────────────────────────────
 
     fun onExportBackup() {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isExporting = true, userMessage = null) }
-            when (
-                val result = backupExportPipeline(
-                    BackupExportPipelineInput(
-                        encrypted = uiState.value.preferences.encryptedBackupsEnabled,
-                    ),
-                )
-            ) {
-                is ActionResult.Success -> {
-                    _uiState.update {
-                        it.copy(
-                            isExporting = false,
-                            hasStagedBackup = true,
-                            backupJson = result.value.artifact.json,
-                            backupFilePath = result.value.artifact.filePath,
-                            pendingExportFileName = result.value.artifact.fileName,
-                            userMessage = if (result.value.artifact.isEncrypted) {
-                                "Encrypted backup ready. Choose where to save it."
-                            } else {
-                                "Backup ready. Choose where to save it."
-                            },
-                        )
-                    }
-                }
-                is ActionResult.PartialSuccess -> {
-                    _uiState.update {
-                        it.copy(
-                            isExporting = false,
-                            backupJson = result.value.artifact.json,
-                            backupFilePath = result.value.artifact.filePath,
-                            pendingExportFileName = result.value.artifact.fileName,
-                            userMessage = result.issues.joinToString("\n") { issue -> issue.message },
-                        )
-                    }
-                }
-                is ActionResult.Failure -> {
-                    _uiState.update {
-                        it.copy(
-                            isExporting = false,
-                            userMessage = result.issue.message,
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    fun onBackupSaveResult(uriLabel: String?, success: Boolean) {
-        _uiState.update {
-            it.copy(
-                pendingExportFileName = null,
-                backupFilePath = uriLabel ?: it.backupFilePath,
-                userMessage = if (success) {
-                    "Backup saved to selected location."
-                } else {
-                    "Unable to save backup to selected location."
-                },
-            )
-        }
-    }
-
-    fun onBackupSaveCancelled() {
-        _uiState.update {
-            it.copy(
-                pendingExportFileName = null,
-                userMessage = "Backup save cancelled.",
-            )
-        }
-    }
-
-    fun onImportBackup() {
-        importBackupPayload(uiState.value.importPayload)
-    }
-
-    fun onImportBackupPayload(payload: String) {
-        _uiState.update { it.copy(importPayload = payload) }
-        importBackupPayload(payload)
-    }
-
-    fun onImportStagedBackup() {
         viewModelScope.launch(Dispatchers.IO) {
-            val file = backupManager.latestStagedBackup(appContext)
-            if (file == null) {
-                _uiState.update { it.copy(userMessage = "No staged backup found. Export first.") }
-                return@launch
-            }
-            val payload = runCatching { file.readText(Charsets.UTF_8) }.getOrDefault("")
-            withContext(Dispatchers.Main) {
-                importBackupPayload(payload)
+            _uiState.update { it.copy(exportStatus = ExportStatus.Building, userMessage = null) }
+            runCatching {
+                val snapshot = exportDataUseCase()
+                val encrypted = _uiState.value.preferences.encryptedBackupsEnabled
+                val pkg = backupSerializer.serialize(snapshot, encrypted)
+                val staged = backupFileManager.stageBackup(pkg)
+                val info = backupFileManager.getStagedBackupInfo()
+                _uiState.update {
+                    it.copy(
+                        exportStatus = ExportStatus.ReadyToSave(pkg),
+                        stagedInfo = info,
+                        userMessage = if (encrypted) "Encrypted backup ready. Choose where to save." else "Backup ready. Choose where to save.",
+                    )
+                }
+            }.onFailure { e ->
+                _uiState.update {
+                    it.copy(
+                        exportStatus = ExportStatus.Failed(e.message ?: "Export failed."),
+                        userMessage = e.message ?: "Export failed.",
+                    )
+                }
             }
         }
     }
 
-    private fun importBackupPayload(payload: String) {
-        if (payload.isBlank()) {
-            _uiState.update { it.copy(userMessage = "Paste a backup payload first.") }
+    fun onSaveExportToUri(resolver: ContentResolver, uri: Uri) {
+        val pkg = (uiState.value.exportStatus as? ExportStatus.ReadyToSave)?.pkg ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            when (val result = backupFileManager.writeToUri(resolver, uri, pkg)) {
+                is WriteResult.Ok -> _uiState.update {
+                    it.copy(
+                        exportStatus = ExportStatus.Saved(result.uriLabel),
+                        userMessage = "Backup saved successfully.",
+                    )
+                }
+                is WriteResult.Error -> _uiState.update {
+                    it.copy(
+                        exportStatus = ExportStatus.Failed(result.message),
+                        userMessage = result.message,
+                    )
+                }
+            }
+        }
+    }
+
+    fun onExportSaveCancelled() {
+        _uiState.update {
+            it.copy(
+                exportStatus = ExportStatus.Idle,
+                userMessage = "Save cancelled. Backup is staged — click \"Import last export\" to restore.",
+            )
+        }
+    }
+
+    fun resetExportStatus() {
+        _uiState.update { it.copy(exportStatus = ExportStatus.Idle) }
+    }
+
+    // ── Import ───────────────────────────────────────────────────────────────
+
+    fun onImportFromStaged() {
+        viewModelScope.launch(Dispatchers.IO) {
+            _uiState.update { it.copy(importStatus = ImportStatus.Running, userMessage = null) }
+            when (val read = backupFileManager.readStagedBackup()) {
+                is ReadResult.Ok -> performImport(read.payload)
+                is ReadResult.Error -> _uiState.update {
+                    it.copy(importStatus = ImportStatus.Failed(read.message), userMessage = read.message)
+                }
+            }
+        }
+    }
+
+    fun onImportFromUri(resolver: ContentResolver, uri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _uiState.update { it.copy(importStatus = ImportStatus.Running, userMessage = null) }
+            when (val read = backupFileManager.readFromUri(resolver, uri)) {
+                is ReadResult.Ok -> performImport(read.payload)
+                is ReadResult.Error -> _uiState.update {
+                    it.copy(importStatus = ImportStatus.Failed(read.message), userMessage = read.message)
+                }
+            }
+        }
+    }
+
+    fun onImportFromText(text: String) {
+        if (text.isBlank()) {
+            _uiState.update { it.copy(userMessage = "Backup text is empty.") }
             return
         }
-        viewModelScope.launch {
-            _uiState.update { it.copy(isImporting = true, userMessage = null) }
-            when (val result = importRestorePipeline(payload)) {
-                is ActionResult.Success -> {
-                    _uiState.update {
-                        it.copy(
-                            isImporting = false,
-                            importPayload = "",
-                            backupJson = "",
-                            userMessage = "Import completed: ${result.value.summary.importedWebsites} websites restored.",
-                        )
-                    }
-                }
-                is ActionResult.PartialSuccess -> {
-                    _uiState.update {
-                        it.copy(
-                            isImporting = false,
-                            importPayload = "",
-                            backupJson = "",
-                            userMessage = buildString {
-                                append("Import completed with warnings.")
-                                append('\n')
-                                append(result.issues.joinToString("\n") { issue -> issue.message })
-                            },
-                        )
-                    }
-                }
-                is ActionResult.Failure -> {
-                    _uiState.update {
-                        it.copy(
-                            isImporting = false,
-                            userMessage = result.issue.message,
-                        )
-                    }
-                }
+        viewModelScope.launch(Dispatchers.IO) {
+            _uiState.update { it.copy(importStatus = ImportStatus.Running, userMessage = null) }
+            performImport(text)
+        }
+    }
+
+    private suspend fun performImport(payload: String) {
+        runCatching {
+            val snapshot = backupSerializer.deserialize(payload)
+            importDataUseCase(snapshot)
+        }.onSuccess { summary ->
+            _uiState.update {
+                it.copy(
+                    importStatus = ImportStatus.Success(
+                        websiteCount = summary.importedWebsites,
+                        categoryCount = summary.importedCategories,
+                    ),
+                    userMessage = "Restored ${summary.importedWebsites} websites across ${summary.importedCategories} categories.",
+                )
+            }
+        }.onFailure { e ->
+            val msg = e.message ?: "Import failed."
+            _uiState.update {
+                it.copy(importStatus = ImportStatus.Failed(msg), userMessage = msg)
             }
         }
     }
+
+    fun resetImportStatus() {
+        _uiState.update { it.copy(importStatus = ImportStatus.Idle) }
+    }
+
+    // ── Health check ─────────────────────────────────────────────────────────
 
     fun onRunHealthCheck() {
         viewModelScope.launch {
             _uiState.update { it.copy(isRunningHealthCheck = true, userMessage = null) }
             val staleBefore = System.currentTimeMillis() - (12L * 60L * 60L * 1000L)
             when (val result = healthCheckPipeline(staleBefore = staleBefore)) {
-                is ActionResult.Success -> {
-                    _uiState.update {
-                        it.copy(
-                            isRunningHealthCheck = false,
-                            healthSummary = "Checked ${result.value.checkedCount} links. " +
-                                "OK ${result.value.okCount}, blocked ${result.value.blockedCount}, redirected ${result.value.redirectedCount}, " +
-                                "dead ${result.value.deadCount}, timeout ${result.value.timeoutCount}.",
-                            latestHealthReport = result.value.items,
-                        )
-                    }
+                is ActionResult.Success -> _uiState.update {
+                    it.copy(
+                        isRunningHealthCheck = false,
+                        healthSummary = "Checked ${result.value.checkedCount} links — OK ${result.value.okCount}, issues ${result.value.deadCount + result.value.timeoutCount + result.value.blockedCount}.",
+                        latestHealthReport = result.value.items,
+                    )
                 }
-                is ActionResult.PartialSuccess -> {
-                    _uiState.update {
-                        it.copy(
-                            isRunningHealthCheck = false,
-                            healthSummary = "Checked ${result.value.checkedCount} links with warnings. " +
-                                "OK ${result.value.okCount}, blocked ${result.value.blockedCount}, redirected ${result.value.redirectedCount}, " +
-                                "dead ${result.value.deadCount}, timeout ${result.value.timeoutCount}.",
-                            latestHealthReport = result.value.items,
-                            userMessage = result.issues.joinToString("\n") { issue -> issue.message },
-                        )
-                    }
+                is ActionResult.PartialSuccess -> _uiState.update {
+                    it.copy(
+                        isRunningHealthCheck = false,
+                        healthSummary = "Checked ${result.value.checkedCount} links with warnings.",
+                        latestHealthReport = result.value.items,
+                        userMessage = result.issues.firstOrNull()?.message,
+                    )
                 }
-                is ActionResult.Failure -> {
-                    _uiState.update {
-                        it.copy(
-                            isRunningHealthCheck = false,
-                            userMessage = result.issue.message,
-                        )
-                    }
+                is ActionResult.Failure -> _uiState.update {
+                    it.copy(isRunningHealthCheck = false, userMessage = result.issue.message)
                 }
             }
         }

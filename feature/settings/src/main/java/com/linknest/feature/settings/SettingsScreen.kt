@@ -111,10 +111,19 @@ fun SettingsRoute(
         }
     }
 
+    // Guard against a second Save-As picker launching after rotation: the status stays
+    // ReadyToSave while the picker is open, and a recreated LaunchedEffect would re-fire.
+    // fileName is unique per export, so a fresh export still launches. Survives rotation.
+    var launchedSaveFor by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(uiState.exportStatus) {
         val status = uiState.exportStatus
         if (status is ExportStatus.ReadyToSave) {
-            saveLauncher.launch(status.pkg.fileName)
+            if (launchedSaveFor != status.pkg.fileName) {
+                launchedSaveFor = status.pkg.fileName
+                saveLauncher.launch(status.pkg.fileName)
+            }
+        } else {
+            launchedSaveFor = null
         }
     }
 

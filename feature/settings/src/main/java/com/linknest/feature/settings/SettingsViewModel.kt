@@ -135,7 +135,16 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun onSaveExportToUri(resolver: ContentResolver, uri: Uri) {
-        val pkg = (uiState.value.exportStatus as? ExportStatus.ReadyToSave)?.pkg ?: return
+        val pkg = (uiState.value.exportStatus as? ExportStatus.ReadyToSave)?.pkg ?: run {
+            // The staged package was lost (e.g. process death while the picker was open).
+            _uiState.update {
+                it.copy(
+                    exportStatus = ExportStatus.Idle,
+                    userMessage = "Export expired before saving. The last backup is staged — export again or use \"Import last export\".",
+                )
+            }
+            return
+        }
         viewModelScope.launch(Dispatchers.IO) {
             when (val result = backupFileManager.writeToUri(resolver, uri, pkg)) {
                 is WriteResult.Ok -> _uiState.update {

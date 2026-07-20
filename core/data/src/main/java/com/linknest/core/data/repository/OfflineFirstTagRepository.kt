@@ -71,11 +71,13 @@ class OfflineFirstTagRepository @Inject constructor(
     }
 
     override suspend fun removeTagFromWebsite(websiteId: Long, tagId: Long) {
-        tagDao.deleteTagFromWebsite(
-            websiteId = websiteId,
-            tagId = tagId,
-        )
-        tagDao.deleteTagIfUnused(tagId)
+        database.withTransaction {
+            tagDao.deleteTagFromWebsite(
+                websiteId = websiteId,
+                tagId = tagId,
+            )
+            tagDao.deleteTagIfUnused(tagId)
+        }
         searchIndexRepository.indexWebsite(websiteId)
         val remaining = tagDao.getAllTags().any { it.id == tagId }
         if (remaining) {

@@ -49,15 +49,15 @@ UI → ViewModel → UseCase → Repository → DAO → Room DB
 ## 5. BUILD CONFIGURATION
 
 - minSdk: 26 | targetSdk: 36 | compileSdk: 36 | JDK: 17
-- Gradle: 8.9 (wrapper)
-- AGP: 8.7.3
+- Gradle: 8.13 (wrapper) | Kotlin: 2.2.10 | KSP: 2.2.10-2.0.2
+- AGP: 8.13.0
 
 ## 6. CRITICAL PATHS
 
 - **App Launch:** MainActivity → NavHost → Dashboard (no health gate)
 - **Add Website:** Share Intent / Manual URL → Metadata Fetch → Save to Room
-- **Backup:** Export tables + preferences → Encrypt → User-selected storage
-- **Restore:** Decrypt → Validate schema → Transactional import
+- **Backup:** Export tables + preferences → gzip + SHA-256 envelope → SAF (user-selected file)
+- **Restore:** Verify checksum → Validate schema/FKs → Transactional import
 
 ## 7. KNOWN ISSUES
 
@@ -76,7 +76,9 @@ UI → ViewModel → UseCase → Repository → DAO → Room DB
 
 ## 9. SECURITY CHECKLIST
 
-- Backup encryption: AES-256-GCM via BackupCryptoManager
+- Backup integrity: SHA-256 checksum + gzip envelope (encryption removed in d2a691f)
 - SQL injection prevention: Room parameterized queries
 - R8 rules: Enabled for release
-- URL validation: Whitelist-based (HttpSecurityPolicy)
+- Outbound fetch (metadata/icons/health): UrlSecurityPolicy.requirePublicWebTarget blocks
+  private/loopback/link-local targets before any request; redirects validated per hop
+- URL storage: lenient (any URL can be saved); fetch/open paths enforce http/https + SSRF guard

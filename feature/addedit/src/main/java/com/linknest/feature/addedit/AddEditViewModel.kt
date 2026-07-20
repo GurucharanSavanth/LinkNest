@@ -178,7 +178,16 @@ class AddEditViewModel @Inject constructor(
 
         if (existingWebsiteId != null) {
             viewModelScope.launch {
-                getWebsiteUseCase(existingWebsiteId)?.let { website ->
+                val website = getWebsiteUseCase(existingWebsiteId)
+                if (website == null) {
+                    // The edit target was deleted (e.g. stale deep link / widget). Don't silently
+                    // fall back to a blank Add form — tell the user and close the screen.
+                    _uiState.update {
+                        it.copy(userMessage = "That website no longer exists.", saveCompleted = true)
+                    }
+                    return@launch
+                }
+                run {
                     val loadedState = _uiState.value.copy(
                         rawUrl = website.normalizedUrl,
                         selectedCategoryId = website.categoryId,

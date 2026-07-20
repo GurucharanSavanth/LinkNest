@@ -67,6 +67,75 @@ class BackupSerializerTest {
         assertEquals(snapshot.preferences?.layoutMode, restored.preferences?.layoutMode)
     }
 
+    @Test
+    fun deserialize_unknownEnumValues_fallBackToDefaultsInsteadOfAborting() {
+        // A backup written by a newer app version can carry enum values this build doesn't know.
+        val json = snapshotJson()
+            .replace("\"iconType\": \"EMOJI\"", "\"iconType\": \"FUTURE_ICON_TYPE\"")
+            .replace("\"chosenIconSource\": \"REL_ICON\"", "\"chosenIconSource\": \"FUTURE_SOURCE\"")
+            .replace("\"priority\": \"HIGH\"", "\"priority\": \"SUPER_URGENT\"")
+            .replace("\"followUpStatus\": \"REVIEW\"", "\"followUpStatus\": \"FUTURE_STATUS\"")
+
+        val parsed = serializer.deserialize(json)
+
+        assertEquals(1, parsed.categories.size)
+        assertEquals(1, parsed.websites.size)
+        // Unknown values degrade to neutral defaults rather than throwing.
+        assertEquals(com.linknest.core.model.WebsitePriority.NORMAL, parsed.websites.single().priority)
+        assertEquals(com.linknest.core.model.FollowUpStatus.NONE, parsed.websites.single().followUpStatus)
+    }
+
+    @Test
+    fun deserialize_preferencesMissingKeys_doesNotAbortImport() {
+        // Drop three pref keys (single-token replacements avoid trimIndent whitespace fragility).
+        val json = snapshotJson()
+            .replace(", \"tileSizeDp\": 160", "")
+            .replace(", \"tileDensityMode\": \"COMFORTABLE\"", "")
+            .replace(", \"encryptedBackupsEnabled\": true", "")
+
+        val parsed = serializer.deserialize(json)
+
+        assertEquals(1, parsed.websites.size)
+        assertEquals("GRID", parsed.preferences?.layoutMode)
+        // Missing keys fall back to defaults instead of throwing JSONException.
+        assertEquals("ADAPTIVE", parsed.preferences?.tileDensityMode)
+        assertEquals(112, parsed.preferences?.tileSizeDp)
+    }
+
+    @Test
+    fun deserialize_gzipBomb_abortsBeforeMaterializing() {
+        // Decompressed content exceeds MAX_CHARS (32 MiB). Streamed here so the test itself
+        // never holds a 32 MiB source string in memory.
+        val compressed = ByteArrayOutputStream().also { out ->
+            GZIPOutputStream(out).bufferedWriter(StandardCharsets.UTF_8).use { writer ->
+                val chunk = "A".repeat(64 * 1024)
+                var written = 0L
+                val target = 33L * 1024 * 1024
+                while (written < target) {
+                    writer.write(chunk)
+                    written += chunk.length
+                }
+            }
+        }.toByteArray()
+        val payload = JSONObject()
+            .put("kind", "linknest.backup")
+            .put(
+                "meta",
+                JSONObject()
+                    .put("version", 2)
+                    .put("schemaVersion", 6)
+                    .put("exportedAt", 1234L)
+                    .put("checksum", compressed.sha256())
+                    .put("compression", "GZIP"),
+            )
+            .put("data", Base64.getEncoder().encodeToString(compressed))
+            .toString()
+
+        assertThrows(IllegalArgumentException::class.java) {
+            serializer.deserialize(payload)
+        }
+    }
+
     private fun v2Payload(snapshotJson: String): String {
         val compressed = gzip(snapshotJson)
         return JSONObject()

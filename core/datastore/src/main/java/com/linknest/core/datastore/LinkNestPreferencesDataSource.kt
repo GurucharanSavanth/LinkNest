@@ -69,8 +69,8 @@ class LinkNestPreferencesDataSource @Inject constructor(
             prefs[TILE_SIZE_DP] = userPreferences.tileSizeDp
             prefs[TILE_DENSITY_MODE] = userPreferences.tileDensityMode.name
             prefs[BACKGROUND_HEALTH_CHECKS_ENABLED] = userPreferences.backgroundHealthChecksEnabled
-            val folderUri = userPreferences.backupFolderUri
-            if (folderUri != null) prefs[BACKUP_FOLDER_URI] = folderUri else prefs.remove(BACKUP_FOLDER_URI)
+            // BACKUP_FOLDER_URI is a device-local SAF grant, never carried in a backup. Leave the
+            // existing value untouched so restoring a backup does not wipe the user's chosen folder.
         }
     }
 

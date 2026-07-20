@@ -88,8 +88,7 @@ class BackupSerializer @Inject constructor() {
         val actualChecksum = compressed.sha256()
         val storedChecksum = meta.getString("checksum")
         require(storedChecksum == actualChecksum) { "Backup file is corrupted (checksum mismatch)." }
-        val json = gunzip(compressed)
-        require(json.length <= MAX_CHARS) { "Backup payload too large after decompression." }
+        val json = gunzipBounded(compressed, MAX_CHARS)
         return JSONObject(json)
     }
 
@@ -109,7 +108,7 @@ class BackupSerializer @Inject constructor() {
                     id = item.getLong("id"),
                     name = item.getString("name"),
                     colorHex = item.getString("colorHex"),
-                    iconType = IconType.valueOf(item.getString("iconType")),
+                    iconType = runCatching { IconType.valueOf(item.getString("iconType")) }.getOrDefault(IconType.AUTO),
                     iconValue = item.optString("iconValue").takeIf(String::isNotBlank),
                     sortOrder = item.getInt("sortOrder"),
                     isCollapsed = item.getBoolean("isCollapsed"),
@@ -129,7 +128,7 @@ class BackupSerializer @Inject constructor() {
                     domain = item.getString("domain"),
                     ogImageUrl = item.optString("ogImageUrl").takeIf(String::isNotBlank),
                     faviconUrl = item.optString("faviconUrl").takeIf(String::isNotBlank),
-                    chosenIconSource = IconSource.valueOf(item.getString("chosenIconSource")),
+                    chosenIconSource = runCatching { IconSource.valueOf(item.getString("chosenIconSource")) }.getOrDefault(IconSource.GENERATED),
                     customIconUri = item.optString("customIconUri").takeIf(String::isNotBlank),
                     emojiIcon = item.optString("emojiIcon").takeIf(String::isNotBlank),
                     tileSizeDp = item.optInt("tileSizeDp").takeIf { it > 0 },
@@ -141,8 +140,10 @@ class BackupSerializer @Inject constructor() {
                     healthStatus = runCatching { HealthStatus.valueOf(item.getString("healthStatus")) }.getOrDefault(HealthStatus.UNKNOWN),
                     note = item.optString("note").takeIf(String::isNotBlank),
                     reasonSaved = item.optString("reasonSaved").takeIf(String::isNotBlank),
-                    priority = item.optString("priority").takeIf(String::isNotBlank)?.let(WebsitePriority::valueOf) ?: WebsitePriority.NORMAL,
-                    followUpStatus = item.optString("followUpStatus").takeIf(String::isNotBlank)?.let(FollowUpStatus::valueOf) ?: FollowUpStatus.NONE,
+                    priority = item.optString("priority").takeIf(String::isNotBlank)
+                        ?.let { runCatching { WebsitePriority.valueOf(it) }.getOrNull() } ?: WebsitePriority.NORMAL,
+                    followUpStatus = item.optString("followUpStatus").takeIf(String::isNotBlank)
+                        ?.let { runCatching { FollowUpStatus.valueOf(it) }.getOrNull() } ?: FollowUpStatus.NONE,
                     revisitAt = item.optLong("revisitAt").takeIf { it > 0L },
                     sourceLabel = item.optString("sourceLabel").takeIf(String::isNotBlank),
                     customLabel = item.optString("customLabel").takeIf(String::isNotBlank),
@@ -204,13 +205,16 @@ class BackupSerializer @Inject constructor() {
                     lastUsedAt = item.getLong("lastUsedAt"),
                 )
             },
+            // Preferences are an optional section (the repository treats a missing/failed prefs
+            // block as a warning, not an import failure), so parse leniently: a missing key falls
+            // back to a default rather than throwing JSONException and aborting the whole import.
             preferences = root.optJSONObject("preferences")?.let { prefs ->
                 BackupPreferences(
-                    layoutMode = prefs.getString("layoutMode"),
-                    tileSizeDp = prefs.getInt("tileSizeDp"),
-                    tileDensityMode = prefs.getString("tileDensityMode"),
-                    backgroundHealthChecksEnabled = prefs.getBoolean("backgroundHealthChecksEnabled"),
-                    encryptedBackupsEnabled = prefs.getBoolean("encryptedBackupsEnabled"),
+                    layoutMode = prefs.optString("layoutMode").takeIf(String::isNotBlank) ?: DEFAULT_LAYOUT_MODE,
+                    tileSizeDp = prefs.optInt("tileSizeDp", DEFAULT_TILE_SIZE_DP).takeIf { it > 0 } ?: DEFAULT_TILE_SIZE_DP,
+                    tileDensityMode = prefs.optString("tileDensityMode").takeIf(String::isNotBlank) ?: DEFAULT_TILE_DENSITY_MODE,
+                    backgroundHealthChecksEnabled = prefs.optBoolean("backgroundHealthChecksEnabled", true),
+                    encryptedBackupsEnabled = prefs.optBoolean("encryptedBackupsEnabled", false),
                 )
             },
         )
@@ -313,8 +317,24 @@ class BackupSerializer @Inject constructor() {
         return out.toByteArray()
     }
 
-    private fun gunzip(compressed: ByteArray): String =
-        GZIPInputStream(ByteArrayInputStream(compressed)).bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+    /**
+     * Streams the gzip payload, aborting as soon as the decompressed length would exceed
+     * [maxChars]. Guards against gzip bombs: a ~24 MiB compressed blob can expand to gigabytes,
+     * so we must not materialize the full string before checking its size.
+     */
+    private fun gunzipBounded(compressed: ByteArray, maxChars: Int): String {
+        GZIPInputStream(ByteArrayInputStream(compressed)).bufferedReader(StandardCharsets.UTF_8).use { reader ->
+            val builder = StringBuilder()
+            val buffer = CharArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val read = reader.read(buffer)
+                if (read < 0) break
+                require(builder.length + read <= maxChars) { "Backup payload too large after decompression." }
+                builder.append(buffer, 0, read)
+            }
+            return builder.toString()
+        }
+    }
 
     private fun ByteArray.sha256(): String {
         val digest = MessageDigest.getInstance("SHA-256").digest(this)
@@ -331,5 +351,9 @@ class BackupSerializer @Inject constructor() {
         const val ENVELOPE_KIND = "linknest.backup"
         const val FORMAT_VERSION = 2
         const val MAX_CHARS = 32 * 1024 * 1024
+        // Defaults mirror LinkNestPreferencesDataSource so a partial prefs block restores sanely.
+        const val DEFAULT_LAYOUT_MODE = "LIST"
+        const val DEFAULT_TILE_DENSITY_MODE = "ADAPTIVE"
+        const val DEFAULT_TILE_SIZE_DP = 112
     }
 }

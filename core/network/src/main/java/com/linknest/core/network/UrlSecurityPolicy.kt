@@ -1,6 +1,9 @@
 package com.linknest.core.network
 
 import java.net.IDN
+import java.net.Inet4Address
+import java.net.Inet6Address
+import java.net.InetAddress
 import java.net.URI
 import java.util.Locale
 
@@ -50,6 +53,42 @@ object UrlSecurityPolicy {
         normalizeHost(host)
         true
     }.getOrDefault(false)
+
+    /**
+     * Trust-boundary guard for ANY outbound fetch (metadata, icons, health probes).
+     * Throws if the target is not an http/https URL whose host — by literal form AND by
+     * resolved IP — is a public destination. This is the only SSRF gate that must run
+     * BEFORE a network call; the lenient normalizer deliberately stores private hosts but
+     * must never fetch them. Residual: Jsoup/HttpURLConnection re-resolve on connect, so
+     * DNS-rebinding TOCTOU is not fully closed here — the literal + first-resolution checks
+     * block the common private-host and private-A-record cases.
+     */
+    fun requirePublicWebTarget(url: String) {
+        val parsed = URI(url)
+        val scheme = parsed.scheme?.lowercase(Locale.US)
+        require(scheme == "http" || scheme == "https") {
+            "Only HTTP(S) destinations can be fetched."
+        }
+        val host = parsed.host?.trim()?.trim('.')?.takeIf(String::isNotBlank)
+            ?: error("URL host is invalid.")
+        // Literal host / syntax / literal-IP private-range check.
+        normalizeHost(host)
+        // Resolved-address private-range check (public name pointing at a private IP).
+        ensureResolvedAddressesPublic(host)
+    }
+
+    private fun ensureResolvedAddressesPublic(host: String) {
+        // Skip literal IPs (already covered by normalizeHost) and unresolvable hosts
+        // (no reachable target — the fetch will fail closed on its own).
+        val addresses = runCatching { InetAddress.getAllByName(host) }.getOrNull() ?: return
+        addresses.forEach { address ->
+            val literal = address.hostAddress?.substringBefore('%') ?: return@forEach
+            when (address) {
+                is Inet4Address -> ensurePublicIpv4(literal)
+                is Inet6Address -> ensurePublicIpv6(literal)
+            }
+        }
+    }
 
     fun sanitizeSearchQuery(raw: String): String =
         raw.trim()

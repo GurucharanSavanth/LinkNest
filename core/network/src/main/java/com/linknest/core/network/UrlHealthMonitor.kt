@@ -19,7 +19,10 @@ class UrlHealthMonitor @Inject constructor(
         try {
             val parsed = URI(url)
             require(parsed.scheme?.lowercase() == "https") { "Only secure HTTPS health checks are allowed." }
-            UrlSecurityPolicy.validateResolvedUrl(url)
+            // Same SSRF guard as metadata/icon fetch: reject private/loopback targets by literal
+            // host AND resolved IP before opening the connection (health checks run on a schedule
+            // over user-supplied URLs).
+            UrlSecurityPolicy.requirePublicWebTarget(url)
 
             val connection = (URL(url).openConnection() as HttpURLConnection).apply {
                 instanceFollowRedirects = false

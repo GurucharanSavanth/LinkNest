@@ -41,14 +41,6 @@ object UrlSecurityPolicy {
         }
     }
 
-    fun validateResolvedUrl(url: String) {
-        val parsed = URI(url)
-        val scheme = parsed.scheme?.lowercase(Locale.US)
-        require(scheme == "https") { "Only secure HTTPS destinations are supported." }
-        val host = parsed.host ?: error("Resolved URL host is invalid.")
-        normalizeHost(host)
-    }
-
     fun isHostAllowed(host: String): Boolean = runCatching {
         normalizeHost(host)
         true
@@ -78,16 +70,27 @@ object UrlSecurityPolicy {
     }
 
     private fun ensureResolvedAddressesPublic(host: String) {
-        // Skip literal IPs (already covered by normalizeHost) and unresolvable hosts
-        // (no reachable target — the fetch will fail closed on its own).
+        // Unresolvable hosts fail closed on their own (no reachable target).
         val addresses = runCatching { InetAddress.getAllByName(host) }.getOrNull() ?: return
         addresses.forEach { address ->
+            // Behavioral flags are form-independent, so they catch loopback/link-local/site-local
+            // regardless of whether getHostAddress returns "::1" or "0:0:0:0:0:0:0:1".
+            requirePublicInetAddress(address)
             val literal = address.hostAddress?.substringBefore('%') ?: return@forEach
             when (address) {
-                is Inet4Address -> ensurePublicIpv4(literal)
-                is Inet6Address -> ensurePublicIpv6(literal)
+                is Inet4Address -> ensurePublicIpv4(literal)  // adds CGNAT 100.64/10 and 0.x
+                is Inet6Address -> ensurePublicIpv6(literal)  // adds ULA fc00::/7
             }
         }
+    }
+
+    private fun requirePublicInetAddress(address: InetAddress) {
+        require(
+            !address.isLoopbackAddress &&
+                !address.isAnyLocalAddress &&
+                !address.isLinkLocalAddress &&
+                !address.isSiteLocalAddress,
+        ) { "Local and private network hosts are blocked." }
     }
 
     fun sanitizeSearchQuery(raw: String): String =
@@ -163,6 +166,18 @@ object UrlSecurityPolicy {
     }
 
     private fun ensurePublicIpv6(host: String) {
+        // Parse the literal (no DNS for a numeric address) so any textual form — compressed "::1"
+        // or expanded "0:0:0:0:0:0:0:1" — is judged by behavioral flags, not by string prefix.
+        val parsed = runCatching { InetAddress.getByName(host.removeSurrounding("[", "]")) }.getOrNull()
+        if (parsed != null) {
+            requirePublicInetAddress(parsed)
+            val canonical = parsed.hostAddress?.substringBefore('%')?.lowercase(Locale.US).orEmpty()
+            // Unique-local (fc00::/7) is not covered by isSiteLocalAddress.
+            require(!canonical.startsWith("fc") && !canonical.startsWith("fd")) {
+                "Local and private network hosts are blocked."
+            }
+            return
+        }
         val normalized = host.lowercase(Locale.US)
         val isPrivate = normalized == "::1" ||
             normalized.startsWith("fc") ||

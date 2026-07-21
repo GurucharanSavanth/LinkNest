@@ -147,7 +147,12 @@ class OfflineFirstCategoryRepository @Inject constructor(
     }
 
     override suspend fun deleteCategory(categoryId: Long) {
-        categoryDao.deleteCategory(categoryId)
+        database.withTransaction {
+            // Clear icon_cache rows for this category's websites before the FK cascade removes the
+            // websites themselves (icon_cache has no FK, so it would otherwise leave orphan rows).
+            iconCacheDao.deleteByCategoryId(categoryId)
+            categoryDao.deleteCategory(categoryId)
+        }
         searchIndexRepository.removeCategory(categoryId)
     }
 }

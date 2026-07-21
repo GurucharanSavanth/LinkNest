@@ -26,6 +26,14 @@ interface IconCacheDao {
     @Query("DELETE FROM icon_cache WHERE website_id = :websiteId")
     suspend fun deleteByWebsiteId(websiteId: Long)
 
+    // icon_cache has no FK to website_entries, so a category delete (which cascades its websites)
+    // would otherwise orphan these rows. Clear them explicitly before the cascade.
+    @Query(
+        "DELETE FROM icon_cache WHERE website_id IN " +
+            "(SELECT id FROM website_entries WHERE category_id = :categoryId)",
+    )
+    suspend fun deleteByCategoryId(categoryId: Long)
+
     @Query("DELETE FROM icon_cache")
     suspend fun deleteAll()
 }

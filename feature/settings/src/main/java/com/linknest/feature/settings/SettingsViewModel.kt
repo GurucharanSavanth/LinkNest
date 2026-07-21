@@ -1,6 +1,7 @@
 package com.linknest.feature.settings
 
 import android.content.ContentResolver
+import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -23,6 +24,7 @@ import com.linknest.core.model.HealthReportItem
 import com.linknest.core.model.TileDensityMode
 import com.linknest.core.model.UserPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -74,6 +76,7 @@ class SettingsViewModel @Inject constructor(
     private val backupSerializer: BackupSerializer,
     private val backupFileManager: BackupFileManager,
     private val healthCheckPipeline: HealthCheckPipeline,
+    @param:ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -114,14 +117,23 @@ class SettingsViewModel @Inject constructor(
             runCatching {
                 val snapshot = exportDataUseCase()
                 val pkg = backupSerializer.serialize(snapshot)
-                val staged = backupFileManager.stageBackup(pkg)
+                backupFileManager.stageBackup(pkg)
                 val info = backupFileManager.getStagedBackupInfo()
-                _uiState.update {
-                    it.copy(
-                        exportStatus = ExportStatus.ReadyToSave(pkg),
-                        stagedInfo = info,
-                        userMessage = "Backup ready. Choose where to save.",
-                    )
+                val folderUri = uiState.value.preferences.backupFolderUri
+                if (folderUri != null) {
+                    // Auto-save to the user's chosen folder; fall back to the manual picker on failure.
+                    when (val result = backupFileManager.writeToFolder(appContext.contentResolver, Uri.parse(folderUri), pkg)) {
+                        is WriteResult.Ok -> _uiState.update {
+                            it.copy(exportStatus = ExportStatus.Saved(result.uriLabel), stagedInfo = info, userMessage = "Backup saved to your chosen folder.")
+                        }
+                        is WriteResult.Error -> _uiState.update {
+                            it.copy(exportStatus = ExportStatus.ReadyToSave(pkg), stagedInfo = info, userMessage = "${result.message} Choose where to save.")
+                        }
+                    }
+                } else {
+                    _uiState.update {
+                        it.copy(exportStatus = ExportStatus.ReadyToSave(pkg), stagedInfo = info, userMessage = "Backup ready. Choose where to save.")
+                    }
                 }
             }.onFailure { e ->
                 _uiState.update {

@@ -39,13 +39,12 @@ Deferred shortcuts and known gaps left after the audit/fix pass. Each: what, why
   release), so such files are unlikely. Trigger: if a real user hits it, add an
   encrypted-kind detection + clear "no longer supported" error. Owner: data.
 
-## Deferred product decision
+## Resolved this pass (was deferred)
 
-- **"Auto-save folder" (M6).** SettingsScreen persists backupFolderUri but no export path
-  writes to it — the feature is inert. The data-loss bug (restore wiping the URI) is fixed,
-  but the button still does nothing observable. Decision needed: wire it (DocumentFile tree
-  write on export when a folder is set) or remove the UI+pref. Wiring needs SAF tree-write
-  validation on a device. Trigger: emulator/device test phase. Owner: settings.
+- **"Auto-save folder" (M6) — DONE.** Wired: BackupFileManager.writeToFolder creates a
+  document in the granted SAF tree; onExportBackup auto-saves there when set, falling back to
+  the manual picker on failure. Verified on emulator (API 37): file written to
+  Download/LinkNestBackups with a valid envelope, no picker shown.
 
 ## Known-issue items not yet addressed (from audit register)
 

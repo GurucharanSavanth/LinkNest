@@ -3,6 +3,7 @@ package com.linknest.core.data.backup
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
+import android.provider.DocumentsContract
 import com.linknest.core.common.coroutine.IoDispatcher
 import com.linknest.core.data.storage.LinkNestStorage
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -80,6 +81,35 @@ class BackupFileManager @Inject constructor(
             } ?: return@withContext WriteResult.Error("Could not open file for writing.")
             WriteResult.Ok(uri.toString())
         }.getOrElse { e -> WriteResult.Error("Write failed: ${e.message}") }
+    }
+
+    /**
+     * Auto-saves [pkg] into a previously-granted SAF tree ([treeUri] from OpenDocumentTree),
+     * creating a new document there. Used when the user has set a backup folder so exports save
+     * without re-picking a location. Returns Error (caller falls back to the manual picker) if the
+     * grant was revoked or the document can't be created.
+     */
+    suspend fun writeToFolder(
+        resolver: ContentResolver,
+        treeUri: Uri,
+        pkg: BackupPackage,
+    ): WriteResult = withContext(ioDispatcher) {
+        runCatching {
+            val parentDocUri = DocumentsContract.buildDocumentUriUsingTree(
+                treeUri,
+                DocumentsContract.getTreeDocumentId(treeUri),
+            )
+            val target = DocumentsContract.createDocument(
+                resolver,
+                parentDocUri,
+                "application/json",
+                pkg.fileName,
+            ) ?: return@withContext WriteResult.Error("Could not create the backup file in the chosen folder.")
+            resolver.openOutputStream(target)?.use { out ->
+                out.write(pkg.payload.toByteArray(Charsets.UTF_8))
+            } ?: return@withContext WriteResult.Error("Could not open the backup file for writing.")
+            WriteResult.Ok(target.toString())
+        }.getOrElse { e -> WriteResult.Error("Auto-save failed: ${e.message}") }
     }
 
     suspend fun writeStagedToUri(

@@ -21,11 +21,15 @@ import kotlinx.coroutines.flow.map
 class OfflineFirstCategoryRepository @Inject constructor(
     private val database: LinkNestDatabase,
     private val categoryDao: CategoryDao,
+    private val websiteDao: com.linknest.core.database.dao.WebsiteDao,
     private val iconCacheDao: IconCacheDao,
     private val tagDao: TagDao,
     private val timeProvider: TimeProvider,
     private val searchIndexRepository: SearchIndexRepository,
 ) : CategoryRepository {
+    override fun observeArchivedCategories(): Flow<List<SelectableCategory>> =
+        categoryDao.observeArchivedCategories().map { it.map(CategoryEntity::asSelectableCategory) }
+
     override fun observeDashboardCategories(): Flow<List<DashboardCategory>> = combine(
         categoryDao.observeCategoryWithWebsites(),
         iconCacheDao.observeAll(),
@@ -36,11 +40,12 @@ class OfflineFirstCategoryRepository @Inject constructor(
             keySelector = { it.websiteId },
             valueTransform = { it.tagName },
         )
+        val duplicates = com.linknest.core.data.mapper.duplicateCounts(categories.flatMap { it.websites })
         categories.map { category ->
             category.asDashboardCategory(
                 iconCacheByWebsiteId = iconCacheByWebsiteId,
                 tagNamesByWebsiteId = tagNamesByWebsiteId,
-            )
+            ).let { mapped -> mapped.copy(websites = mapped.websites.map { it.copy(duplicateCount = duplicates[it.id] ?: 0) }) }
         }
     }
 
@@ -147,12 +152,15 @@ class OfflineFirstCategoryRepository @Inject constructor(
     }
 
     override suspend fun deleteCategory(categoryId: Long) {
-        database.withTransaction {
+        val deletedIds = database.withTransaction {
+            val ids = websiteDao.getWebsitesByCategory(categoryId).map { it.id }
             // Clear icon_cache rows for this category's websites before the FK cascade removes the
             // websites themselves (icon_cache has no FK, so it would otherwise leave orphan rows).
             iconCacheDao.deleteByCategoryId(categoryId)
             categoryDao.deleteCategory(categoryId)
+            ids
         }
+        deletedIds.forEach { searchIndexRepository.removeWebsite(it) }
         searchIndexRepository.removeCategory(categoryId)
     }
 }

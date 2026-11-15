@@ -308,11 +308,11 @@ private fun SearchScreen(
                         }
                     }
 
-                    items(
-                        items = uiState.results.groups,
-                        key = { group -> group.title },
-                    ) { group ->
-                        SearchGroup(group = group, onOpenWebsite = onOpenWebsite)
+                    uiState.results.groups.forEach { group ->
+                        item(key = "group-${group.title}") { Text(group.title, style = MaterialTheme.typography.titleMedium) }
+                        items(group.results, key = { "result-${it.websiteId}" }) { result ->
+                            SearchGroup(group.copy(results = listOf(result)), onOpenWebsite)
+                        }
                     }
                 }
             }
@@ -401,11 +401,10 @@ private fun SavedFiltersPanel(
                         onClick = { onSelectSavedFilter(filter.id) },
                         label = { Text(filter.name) },
                         trailingIcon = {
-                            Icon(
+                            IconButton(onClick = { onDeleteSavedFilter(filter.id) }) { Icon(
                                 imageVector = Icons.Rounded.ClearAll,
                                 contentDescription = "Delete filter",
-                                modifier = Modifier.clickable { onDeleteSavedFilter(filter.id) },
-                            )
+                            ) }
                         },
                     )
                 }

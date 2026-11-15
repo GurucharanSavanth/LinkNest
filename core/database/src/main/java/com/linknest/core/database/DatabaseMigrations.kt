@@ -199,8 +199,12 @@ object DatabaseMigrations {
                 FROM website_entries
                 """.trimIndent(),
             )
+            // Dropping the parent cascades tag links; preserve them across the table rebuild.
+            database.execSQL("CREATE TEMP TABLE migration_website_tags AS SELECT * FROM website_tag_cross_ref")
             database.execSQL("DROP TABLE website_entries")
             database.execSQL("ALTER TABLE website_entries_new RENAME TO website_entries")
+            database.execSQL("INSERT OR IGNORE INTO website_tag_cross_ref SELECT * FROM migration_website_tags")
+            database.execSQL("DROP TABLE migration_website_tags")
 
             database.execSQL(
                 "CREATE INDEX IF NOT EXISTS index_website_entries_category_id ON website_entries(category_id)",

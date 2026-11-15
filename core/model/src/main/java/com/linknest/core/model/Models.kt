@@ -81,12 +81,9 @@ data class WebsiteListItem(
 ) {
     val preferredIconUrl: String?
         get() = when (chosenIconSource) {
-            IconSource.CUSTOM -> customIconUri ?: cachedIconUri ?: faviconUrl
-            IconSource.EMOJI -> cachedIconUri ?: faviconUrl
-            IconSource.OG_IMAGE -> ogImageUrl ?: faviconUrl
-            IconSource.GENERATED,
-            -> cachedIconUri ?: faviconUrl ?: ogImageUrl
-            else -> cachedIconUri ?: faviconUrl ?: ogImageUrl
+            IconSource.EMOJI -> null
+            IconSource.CUSTOM -> customIconUri.localImageOrNull() ?: cachedIconUri.localImageOrNull()
+            else -> cachedIconUri.localImageOrNull()
         }
 }
 
@@ -144,10 +141,8 @@ data class MetadataPreview(
     val suggestedCategory: CategorySuggestion? = null,
 ) {
     val preferredIconUrl: String?
-        get() = when (chosenIconSource) {
-            IconSource.OG_IMAGE -> ogImageUrl ?: faviconUrl
-            else -> faviconUrl ?: ogImageUrl
-        }
+        // Preview metadata is untrusted; only the guarded icon cache downloads images.
+        get() = null
 }
 
 @Immutable
@@ -172,7 +167,7 @@ data class SearchResultItem(
     val matchedFields: List<String>,
 ) {
     val preferredIconUrl: String?
-        get() = cachedIconUri ?: customIconUri ?: faviconUrl ?: ogImageUrl
+        get() = if (chosenIconSource == IconSource.EMOJI) null else cachedIconUri.localImageOrNull() ?: customIconUri.localImageOrNull()
 }
 
 data class SearchResultGroup(
@@ -319,3 +314,11 @@ data class IntegrityOverview(
     val databaseSizeBytes: Long = 0L,
     val recentEvents: List<IntegrityEvent> = emptyList(),
 )
+
+// Remote URLs never reach the image loader; imported file paths are discarded during restore.
+private fun String?.localImageOrNull(): String? = this?.takeIf { value ->
+    runCatching {
+        val uri = java.net.URI(value)
+        uri.scheme == "content" || (uri.scheme == "file" && java.io.File(uri).isFile)
+    }.getOrDefault(false)
+}

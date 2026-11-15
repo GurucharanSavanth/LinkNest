@@ -9,6 +9,17 @@ class UrlNormalizerTest {
     private val normalizer = UrlNormalizer()
 
     @Test
+    fun encodedComponents_preserveReservedDelimitersAndSignature() {
+        val url = "https://example.com/a%2Fb?q=a%26b%3Dc%25&signature=abc%2Bdef#part%2Fone"
+        assertEquals(url, normalizer.normalize(url).getOrThrow().normalizedUrl)
+    }
+
+    @Test fun credentialsAreRejectedAndExplicitHttpsPortIsPreserved() {
+        assertTrue(normalizer.normalize("https://user:password@example.com/").isFailure)
+        assertEquals("https://example.com:80/", normalizer.normalize("https://example.com:80/").getOrThrow().normalizedUrl)
+    }
+
+    @Test
     fun missingScheme_defaultsToHttps() {
         val result = normalizer.normalize("example.com/path?q=1").getOrThrow()
 

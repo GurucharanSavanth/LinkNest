@@ -2,7 +2,6 @@ package com.linknest.app.widget
 
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
-import android.content.ComponentName
 import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,17 +28,14 @@ class QuickAddWidgetProvider : AppWidgetProvider() {
                         body = context.getString(com.linknest.app.R.string.widget_quick_add_body),
                     )
                 }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                android.util.Log.e("LinkNestWidget", "Widget update failed", failure)
             } finally {
                 pendingResult.finish()
             }
         }
     }
 
-    override fun onEnabled(context: Context) {
-        val manager = AppWidgetManager.getInstance(context)
-        val widgetIds = manager.getAppWidgetIds(ComponentName(context, javaClass))
-        if (widgetIds.isNotEmpty()) {
-            onUpdate(context, manager, widgetIds)
-        }
-    }
 }

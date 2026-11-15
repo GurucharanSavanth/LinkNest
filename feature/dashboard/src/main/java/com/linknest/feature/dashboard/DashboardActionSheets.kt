@@ -45,6 +45,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import com.linknest.core.designsystem.component.GlassPanel
 import com.linknest.core.model.DashboardCategory
 import com.linknest.core.model.DashboardSmartSection
@@ -54,52 +57,7 @@ import com.linknest.core.model.WebsiteListItem
 private val CategoryActionColors = listOf("#7C4DFF", "#00BCD4", "#4CAF50", "#FF9800", "#F06292", "#FFD54F")
 private val CategoryActionIcons = listOf("🧠", "📁", "🚀", "🎨", "💼", "🌐")
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun SmartSectionSheet(
-    section: DashboardSmartSection,
-    onDismiss: () -> Unit,
-    onOpenWebsite: (WebsiteListItem) -> Unit,
-) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(section.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-            section.websites.forEach { website ->
-                key(website.id) {
-                    val metadataSummary = website.dashboardMetadataSummary()
-                    GlassPanel(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().clickable {
-                                onDismiss()
-                                onOpenWebsite(website)
-                            },
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(website.title, fontWeight = FontWeight.Medium)
-                                Text(website.normalizedUrl, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                metadataSummary?.let { summary ->
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        summary,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
-                            Text(website.openCount.toString(), style = MaterialTheme.typography.labelLarge)
-                        }
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-        }
-    }
-}
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -256,7 +214,7 @@ fun EditCategorySheet(
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 CategoryActionColors.forEach { candidate ->
                     Surface(
-                        modifier = Modifier.size(36.dp).clip(CircleShape).clickable { colorHex = candidate },
+                        modifier = Modifier.size(48.dp).semantics { contentDescription = "Color $candidate"; selected = colorHex == candidate }.clip(CircleShape).clickable { colorHex = candidate },
                         color = Color(parseColor(candidate)),
                         tonalElevation = if (candidate == colorHex) 4.dp else 0.dp,
                     ) {}

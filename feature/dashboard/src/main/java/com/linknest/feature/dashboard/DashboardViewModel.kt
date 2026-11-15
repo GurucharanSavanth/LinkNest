@@ -133,6 +133,10 @@ class DashboardViewModel @Inject constructor(
     }
 
     fun onMoveCategoryToIndex(categoryId: Long, targetIndex: Int) {
+        if (uiState.value.searchQuery.isNotBlank()) {
+            _uiState.update { it.copy(userMessage = "Clear search before reordering.") }
+            return
+        }
         val current = uiState.value.dashboard.categories.map { it.id }.toMutableList()
         val currentIndex = current.indexOf(categoryId)
         if (currentIndex == -1) return
@@ -159,6 +163,10 @@ class DashboardViewModel @Inject constructor(
     }
 
     fun onMoveWebsiteToIndex(categoryId: Long, websiteId: Long, targetIndex: Int) {
+        if (uiState.value.searchQuery.isNotBlank()) {
+            _uiState.update { it.copy(userMessage = "Clear search before reordering.") }
+            return
+        }
         val category = uiState.value.dashboard.categories.firstOrNull { it.id == categoryId } ?: return
         val current = category.websites.map { it.id }.toMutableList()
         val currentIndex = current.indexOf(websiteId)

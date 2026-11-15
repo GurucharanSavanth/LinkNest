@@ -25,6 +25,7 @@ import com.linknest.core.model.WebsiteListItem
 import kotlinx.coroutines.flow.Flow
 
 interface CategoryRepository {
+    fun observeArchivedCategories(): Flow<List<SelectableCategory>>
     fun observeDashboardCategories(): Flow<List<DashboardCategory>>
     fun observeSelectableCategories(): Flow<List<SelectableCategory>>
     suspend fun getCategoryById(categoryId: Long): SelectableCategory?

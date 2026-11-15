@@ -11,7 +11,7 @@ It is built as a modular offline-first project with Jetpack Compose, Room, DataS
 - Search locally across titles, domains, categories, tags, notes, flags, and saved searches.
 - Reopen filtered slices of the library with Smart Collections, recent queries, and saved searches.
 - Run link health checks and review broken, redirected, timed-out, blocked, or login-required entries.
-- Export and import backups as JSON or encrypted `.lnen` payloads.
+- Export and import checksummed gzip/base64 JSON backups. Backups are not encrypted.
 - Track integrity metrics such as duplicate entries, unsorted links, cache size, and database size.
 - Publish shortcuts and refresh app widgets for quick access.
 - Accept shared content into the app through a dedicated share-entry flow.
@@ -42,7 +42,7 @@ It is built as a modular offline-first project with Jetpack Compose, Room, DataS
 ## Requirements
 
 - Android Studio with a valid Android SDK installation
-- JDK 17
+- JetBrains JDK 21 for the Gradle daemon (Java bytecode target 17)
 - Android `minSdk = 26`
 - Android `targetSdk = 36`
 - Android `compileSdk = 36`

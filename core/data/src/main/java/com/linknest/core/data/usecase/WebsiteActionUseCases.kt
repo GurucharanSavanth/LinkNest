@@ -13,6 +13,7 @@ import javax.inject.Inject
 class SearchUseCase @Inject constructor(
     private val websiteRepository: WebsiteRepository,
     private val searchIndexRepository: SearchIndexRepository,
+    private val categoryRepository: com.linknest.core.data.repository.CategoryRepository,
 ) {
     suspend operator fun invoke(
         query: String,
@@ -24,8 +25,12 @@ class SearchUseCase @Inject constructor(
             query = sanitizedQuery,
             limit = limit,
         )
-        return if (indexedResults.isNotEmpty()) {
-            indexedResults
+        val activeCategories = categoryRepository.getAllCategories().map { it.id }.toSet()
+        val validResults = indexedResults.filter { result ->
+            result.categoryId in activeCategories && websiteRepository.getWebsiteById(result.websiteId) != null
+        }
+        return if (validResults.isNotEmpty()) {
+            validResults
         } else {
             websiteRepository.search(sanitizedQuery, limit)
         }

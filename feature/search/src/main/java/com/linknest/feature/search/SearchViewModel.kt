@@ -45,6 +45,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -88,10 +89,10 @@ data class SearchUiState(
             includeNeedsAttention
 }
 
-@OptIn(FlowPreview::class)
+@OptIn(FlowPreview::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class SearchViewModel @Inject constructor(
-    savedStateHandle: SavedStateHandle,
+    private val savedStateHandle: SavedStateHandle,
     private val searchPipeline: SearchPipeline,
     private val trackWebsiteOpenAction: TrackWebsiteOpenAction,
     private val loadSavedFiltersUseCase: LoadSavedFiltersUseCase,
@@ -107,6 +108,7 @@ class SearchViewModel @Inject constructor(
     private val applyFilterUseCase: ApplyFilterUseCase,
     private val warmSearchIndexUseCase: WarmSearchIndexUseCase,
 ) : ViewModel() {
+    private val restoredDraft = savedStateHandle.contains("searchDraft")
     private val initialSavedFilterId = savedStateHandle
         .get<Long>(SEARCH_FILTER_ID_ARG)
         ?.takeIf { it > 0L }
@@ -127,6 +129,21 @@ class SearchViewModel @Inject constructor(
     val uiState: StateFlow<SearchUiState> = _uiState.asStateFlow()
 
     init {
+        savedStateHandle.get<android.os.Bundle>("searchDraft")?.let { draft ->
+            _uiState.update { it.copy(
+                query = draft.getString("query").orEmpty(),
+                selectedCategoryIds = draft.getLongArray("categories")?.toSet().orEmpty(),
+                selectedTagNames = draft.getStringArrayList("tags")?.toSet().orEmpty(),
+                selectedHealthStatuses = draft.getStringArrayList("health").orEmpty().mapNotNull { value -> HealthStatus.entries.find { it.name == value } }.toSet(),
+                selectedPriorities = draft.getStringArrayList("priority").orEmpty().mapNotNull { value -> WebsitePriority.entries.find { it.name == value } }.toSet(),
+                selectedFollowUpStatuses = draft.getStringArrayList("followUp").orEmpty().mapNotNull { value -> FollowUpStatus.entries.find { it.name == value } }.toSet(),
+                pinnedOnly = draft.getBoolean("pinned"), recentOnly = draft.getBoolean("recent"),
+                duplicatesOnly = draft.getBoolean("duplicates"), includeNeedsAttention = draft.getBoolean("attention"),
+            ) }
+            requestFlow.value = SearchRequest(uiState.value.query, currentFilterSpec())
+            suggestionQueryFlow.value = uiState.value.query
+        }
+
         viewModelScope.launch {
             warmSearchIndexUseCase()
         }
@@ -134,13 +151,13 @@ class SearchViewModel @Inject constructor(
         requestFlow
             .debounce(220)
             .distinctUntilChanged()
-            .onEach(::performSearch)
+            .mapLatest { performSearch(it) }
             .launchIn(viewModelScope)
 
         suggestionQueryFlow
             .debounce(120)
             .distinctUntilChanged()
-            .onEach(::updateSuggestions)
+            .mapLatest { updateSuggestions(it) }
             .launchIn(viewModelScope)
 
         viewModelScope.launch {
@@ -168,7 +185,7 @@ class SearchViewModel @Inject constructor(
         viewModelScope.launch {
             loadSavedFiltersUseCase().collect { filters ->
                 _uiState.update { current -> current.copy(savedFilters = filters) }
-                if (_uiState.value.activeSavedFilterId == null) {
+                if (!restoredDraft && _uiState.value.activeSavedFilterId == null) {
                     initialSavedFilterId?.let { filterId ->
                         filters.firstOrNull { it.id == filterId }?.let(::applySavedFilter)
                     }
@@ -176,7 +193,7 @@ class SearchViewModel @Inject constructor(
             }
         }
 
-        initialCollection?.let { applySmartCollection(collection = it, emitRequest = true) }
+        if (!restoredDraft) initialCollection?.let { applySmartCollection(collection = it, emitRequest = true) }
     }
 
     fun onQueryChanged(query: String) {
@@ -437,6 +454,17 @@ class SearchViewModel @Inject constructor(
     }
 
     private fun emitSearchRequest() {
+        val state = uiState.value
+        savedStateHandle["searchDraft"] = android.os.Bundle().apply {
+            putString("query", state.query); putLongArray("categories", state.selectedCategoryIds.toLongArray())
+            putStringArrayList("tags", ArrayList(state.selectedTagNames))
+            putStringArrayList("health", ArrayList(state.selectedHealthStatuses.map { it.name }))
+            putStringArrayList("priority", ArrayList(state.selectedPriorities.map { it.name }))
+            putStringArrayList("followUp", ArrayList(state.selectedFollowUpStatuses.map { it.name }))
+            putBoolean("pinned", state.pinnedOnly); putBoolean("recent", state.recentOnly)
+            putBoolean("duplicates", state.duplicatesOnly); putBoolean("attention", state.includeNeedsAttention)
+        }
+
         requestFlow.value = SearchRequest(
             query = uiState.value.query,
             spec = currentFilterSpec(),
@@ -473,9 +501,9 @@ class SearchViewModel @Inject constructor(
         _uiState.update { it.copy(isSearching = true) }
 
         val categoryNames = uiState.value.availableCategories.associate { it.id to it.name }
-        if (request.query.isBlank()) {
+        if (request.query.isBlank() || hasFilters) {
             val filteredItems = applyFilterUseCase(
-                getAllWebsiteItemsUseCase(),
+                getAllWebsiteItemsUseCase().filter { it.categoryId in categoryNames },
                 request.spec,
             )
             _uiState.update {

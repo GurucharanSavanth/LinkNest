@@ -93,6 +93,16 @@ object UrlSecurityPolicy {
         ) { "Local and private network hosts are blocked." }
     }
 
+    fun requirePublicAddress(address: InetAddress) {
+        requirePublicInetAddress(address)
+        require(!address.isMulticastAddress) { "Multicast destinations are blocked." }
+        val literal = address.hostAddress?.substringBefore('%') ?: error("Invalid address.")
+        when (address) {
+            is Inet4Address -> ensurePublicIpv4(literal)
+            is Inet6Address -> ensurePublicIpv6(literal)
+        }
+    }
+
     fun sanitizeSearchQuery(raw: String): String =
         raw.trim()
             .replace(CONTROL_CHARACTERS, " ")

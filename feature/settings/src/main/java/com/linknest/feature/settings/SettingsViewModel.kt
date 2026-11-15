@@ -19,7 +19,6 @@ import com.linknest.core.data.usecase.ObserveUserPreferencesUseCase
 import com.linknest.core.data.usecase.UpdateBackgroundHealthChecksUseCase
 import com.linknest.core.data.usecase.UpdateBackupFolderUriUseCase
 import com.linknest.core.data.usecase.UpdateTileDensityModeUseCase
-import com.linknest.core.data.usecase.UpdateTileSizeUseCase
 import com.linknest.core.model.HealthReportItem
 import com.linknest.core.model.TileDensityMode
 import com.linknest.core.model.UserPreferences
@@ -44,11 +43,13 @@ sealed interface ExportStatus {
 sealed interface ImportStatus {
     object Idle : ImportStatus
     object Running : ImportStatus
+    data class Preview(val snapshot: com.linknest.core.data.model.BackupSnapshot, val currentCount: Int) : ImportStatus
     data class Success(val websiteCount: Int, val categoryCount: Int) : ImportStatus
     data class Failed(val reason: String) : ImportStatus
 }
 
 data class SettingsUiState(
+    val archivedCategories: List<com.linknest.core.model.SelectableCategory> = emptyList(),
     val isLoading: Boolean = true,
     val preferences: UserPreferences = UserPreferences(),
     val exportStatus: ExportStatus = ExportStatus.Idle,
@@ -66,8 +67,8 @@ data class SettingsUiState(
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
+    private val categoryRepository: com.linknest.core.data.repository.CategoryRepository,
     observeUserPreferencesUseCase: ObserveUserPreferencesUseCase,
-    private val updateTileSizeUseCase: UpdateTileSizeUseCase,
     private val updateTileDensityModeUseCase: UpdateTileDensityModeUseCase,
     private val updateBackgroundHealthChecksUseCase: UpdateBackgroundHealthChecksUseCase,
     private val updateBackupFolderUriUseCase: UpdateBackupFolderUriUseCase,
@@ -84,6 +85,12 @@ class SettingsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
+            categoryRepository.observeArchivedCategories().collect { categories ->
+                _uiState.update { it.copy(archivedCategories = categories) }
+            }
+        }
+
+        viewModelScope.launch {
             observeUserPreferencesUseCase().collect { prefs ->
                 _uiState.update { it.copy(isLoading = false, preferences = prefs) }
             }
@@ -97,7 +104,6 @@ class SettingsViewModel @Inject constructor(
     // ── Preferences ──────────────────────────────────────────────────────────
 
     fun onTileDensityModeSelected(mode: TileDensityMode) = viewModelScope.launch { updateTileDensityModeUseCase(mode) }
-    fun onTileSizeSelected(sizeDp: Int) = viewModelScope.launch { updateTileSizeUseCase(sizeDp) }
     fun onBackgroundHealthChecksChanged(enabled: Boolean) = viewModelScope.launch { updateBackgroundHealthChecksUseCase(enabled) }
 
     fun onBackupFolderSelected(uri: String?) {
@@ -184,9 +190,6 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun resetExportStatus() {
-        _uiState.update { it.copy(exportStatus = ExportStatus.Idle) }
-    }
 
     // ── Import ───────────────────────────────────────────────────────────────
 
@@ -226,24 +229,44 @@ class SettingsViewModel @Inject constructor(
     }
 
     private suspend fun performImport(payload: String) {
-        runCatching {
+        try {
             val snapshot = backupSerializer.deserialize(payload)
-            importDataUseCase(snapshot)
-        }.onSuccess { summary ->
-            _uiState.update {
-                it.copy(
-                    importStatus = ImportStatus.Success(
-                        websiteCount = summary.importedWebsites,
-                        categoryCount = summary.importedCategories,
-                    ),
-                    userMessage = "Restored ${summary.importedWebsites} websites across ${summary.importedCategories} categories.",
-                )
+            com.linknest.core.data.backup.validateBackup(snapshot)
+            val current = exportDataUseCase()
+            _uiState.update { it.copy(importStatus = ImportStatus.Preview(snapshot, current.websites.size)) }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            _uiState.update { it.copy(importStatus = ImportStatus.Failed(failure.message ?: "Invalid backup.")) }
+        }
+    }
+
+    fun confirmImport() {
+        val preview = uiState.value.importStatus as? ImportStatus.Preview ?: return
+        _uiState.update { it.copy(importStatus = ImportStatus.Running) }
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val recovery = backupSerializer.serialize(exportDataUseCase())
+                backupFileManager.stageBackup(recovery)
+                val summary = importDataUseCase(preview.snapshot)
+                _uiState.update { it.copy(
+                    importStatus = ImportStatus.Success(summary.importedWebsites, summary.importedCategories),
+                    stagedInfo = backupFileManager.getStagedBackupInfo(),
+                    userMessage = (listOf("Restore complete. Previous library is staged for recovery.") + summary.warnings).joinToString("\n"),
+                ) }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                _uiState.update { it.copy(importStatus = ImportStatus.Failed(failure.message ?: "Restore failed.")) }
             }
-        }.onFailure { e ->
-            val msg = e.message ?: "Import failed."
-            _uiState.update {
-                it.copy(importStatus = ImportStatus.Failed(msg), userMessage = msg)
-            }
+        }
+    }
+
+    fun restoreCategory(id: Long) {
+        viewModelScope.launch {
+            try { categoryRepository.archiveCategory(id, false) }
+            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (failure: Exception) { _uiState.update { it.copy(userMessage = failure.message) } }
         }
     }
 

@@ -153,7 +153,7 @@ class ApplyFilterUseCase @Inject constructor() {
                 item.reasonSaved,
                 item.sourceLabel,
                 item.customLabel,
-            ).any { candidate -> candidate.lowercase().contains(normalizedQuery) }) &&
+            ).plus(item.tagNames).any { candidate -> candidate.lowercase().contains(normalizedQuery) }) &&
                 (spec.categoryIds.isEmpty() || item.categoryId in spec.categoryIds) &&
                 (spec.tagNames.isEmpty() || spec.tagNames.any { tag ->
                     item.tagNames.any { it.equals(tag, ignoreCase = true) }

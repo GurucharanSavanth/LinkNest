@@ -9,7 +9,6 @@ import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
-import org.jsoup.Connection
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
@@ -27,11 +26,10 @@ class UrlMetadataFetcher @Inject constructor(
             // SSRF guard: reject private/loopback/link-local targets BEFORE any network call,
             // and follow redirects manually so each hop is re-validated (Jsoup auto-redirect
             // would fetch a private host before we could check it).
-            val response = fetchWithValidatedRedirects(normalizedUrl.normalizedUrl)
-                ?: return@withContext generatedMetadata(normalizedUrl)
-
-            val document = response.parse()
-            val finalUrl = response.url().toString().ifBlank { normalizedUrl.normalizedUrl }
+            val response = PublicWebClient.fetch(normalizedUrl.normalizedUrl, MAX_BODY_BYTES)
+            if (response.code !in 200..299) return@withContext generatedMetadata(normalizedUrl)
+            val document = Jsoup.parse(java.io.ByteArrayInputStream(response.bytes), null, response.url)
+            val finalUrl = response.url
             val resolvedDomain = runCatching {
                 URI(finalUrl).host?.trim()?.let { host -> UrlSecurityPolicy.normalizeHost(host).first }?.removePrefix("www.")
             }.getOrNull().orEmpty().ifBlank { normalizedUrl.domain }
@@ -65,32 +63,6 @@ class UrlMetadataFetcher @Inject constructor(
         } catch (_: Throwable) {
             generatedMetadata(normalizedUrl)
         }
-    }
-
-    /**
-     * Fetches [startUrl], following up to [MAX_REDIRECTS] redirects while re-validating every
-     * hop against [UrlSecurityPolicy.requirePublicWebTarget]. Returns null if any hop targets a
-     * non-public host, the redirect budget is exceeded, or no Location is provided on a 3xx.
-     * 4xx/5xx surface as a thrown HttpStatusException handled by the caller's catch.
-     */
-    private fun fetchWithValidatedRedirects(startUrl: String): Connection.Response? {
-        var current = startUrl
-        repeat(MAX_REDIRECTS + 1) {
-            runCatching { UrlSecurityPolicy.requirePublicWebTarget(current) }
-                .getOrElse { return null }
-            val response = Jsoup.connect(current)
-                .userAgent(USER_AGENT)
-                .timeout(TIMEOUT_MILLIS)
-                .maxBodySize(MAX_BODY_BYTES)
-                .followRedirects(false)
-                .execute()
-            if (response.statusCode() !in 300..399) {
-                return response
-            }
-            val location = response.header("Location")?.ifBlank { null } ?: return response
-            current = runCatching { URI(current).resolve(location).toString() }.getOrNull() ?: return null
-        }
-        return null
     }
 
     private fun generatedMetadata(normalizedUrl: NormalizedUrl): MetadataResult = MetadataResult(

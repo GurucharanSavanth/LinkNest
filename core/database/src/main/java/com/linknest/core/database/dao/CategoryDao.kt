@@ -12,6 +12,9 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface CategoryDao {
+    @Query("SELECT * FROM categories WHERE is_archived = 1 ORDER BY name COLLATE NOCASE")
+    fun observeArchivedCategories(): Flow<List<CategoryEntity>>
+
     @Transaction
     @Query(
         """

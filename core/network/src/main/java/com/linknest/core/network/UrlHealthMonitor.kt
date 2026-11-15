@@ -3,13 +3,10 @@ package com.linknest.core.network
 import com.linknest.core.common.coroutine.IoDispatcher
 import com.linknest.core.model.HealthStatus
 import javax.net.ssl.SSLException
-import java.net.HttpURLConnection
 import java.net.URI
-import java.net.URL
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 
 class UrlHealthMonitor @Inject constructor(
@@ -24,29 +21,18 @@ class UrlHealthMonitor @Inject constructor(
             // over user-supplied URLs).
             UrlSecurityPolicy.requirePublicWebTarget(url)
 
-            val connection = (URL(url).openConnection() as HttpURLConnection).apply {
-                instanceFollowRedirects = false
-                connectTimeout = TIMEOUT_MILLIS
-                readTimeout = TIMEOUT_MILLIS
-                requestMethod = "HEAD"
-                setRequestProperty("User-Agent", USER_AGENT)
+            var response = PublicWebClient.fetch(url, 0, method = "HEAD", redirects = false)
+            if (response.code == 405 || response.code == 501) {
+                response = PublicWebClient.fetch(url, 0, redirects = false)
             }
-
-            val cancelHandle = coroutineContext[Job]?.invokeOnCompletion { connection.disconnect() }
-            try {
-                val statusCode = connection.responseCode
-                when {
-                    statusCode in 200..299 -> HealthStatus.OK
-                    statusCode in setOf(401, 407) -> HealthStatus.LOGIN_REQUIRED
-                    statusCode in setOf(403, 451) -> HealthStatus.BLOCKED
-                    statusCode in 300..399 -> HealthStatus.REDIRECTED
-                    statusCode == 408 -> HealthStatus.TIMEOUT
-                    statusCode in 400..599 -> HealthStatus.DEAD
-                    else -> HealthStatus.UNKNOWN
-                }
-            } finally {
-                cancelHandle?.dispose()
-                connection.disconnect()
+            when (response.code) {
+                in 200..299 -> HealthStatus.OK
+                401, 407 -> HealthStatus.LOGIN_REQUIRED
+                403, 451 -> HealthStatus.BLOCKED
+                in 300..399 -> HealthStatus.REDIRECTED
+                408 -> HealthStatus.TIMEOUT
+                in 400..599 -> HealthStatus.DEAD
+                else -> HealthStatus.UNKNOWN
             }
         } catch (cancellationException: CancellationException) {
             throw cancellationException

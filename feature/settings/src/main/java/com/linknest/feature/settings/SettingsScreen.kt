@@ -71,6 +71,16 @@ fun SettingsRoute(
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
 
+    (uiState.importStatus as? ImportStatus.Preview)?.let { preview ->
+        AlertDialog(
+            onDismissRequest = viewModel::resetImportStatus,
+            title = { Text("Replace library?") },
+            text = { Text("Replace ${preview.currentCount} websites with ${preview.snapshot.websites.size} websites in ${preview.snapshot.categories.size} categories. Your previous library will be staged for recovery.") },
+            confirmButton = { TextButton(onClick = viewModel::confirmImport) { Text("Replace library") } },
+            dismissButton = { TextButton(onClick = viewModel::resetImportStatus) { Text("Cancel") } },
+        )
+    }
+
     val backupFolderLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
     ) { uri ->
@@ -81,9 +91,8 @@ fun SettingsRoute(
                     android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
                         android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
                 )
-            }
+            }.onSuccess { viewModel.onBackupFolderSelected(uri.toString()) }
         }
-        viewModel.onBackupFolderSelected(uri?.toString())
     }
 
     val saveLauncher = rememberLauncherForActivityResult(
@@ -131,6 +140,7 @@ fun SettingsRoute(
         uiState = uiState,
         snackbarHostState = snackbarHostState,
         modifier = modifier,
+        onRestoreCategory = viewModel::restoreCategory,
         onBack = onBack,
         onOpenIntegrityCenter = onOpenIntegrityCenter,
         onOpenHealthReport = onOpenHealthReport,
@@ -149,6 +159,7 @@ fun SettingsRoute(
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun SettingsScreen(
+    onRestoreCategory: (Long) -> Unit,
     uiState: SettingsUiState,
     snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier,
@@ -199,6 +210,18 @@ private fun SettingsScreen(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
+                if (uiState.archivedCategories.isNotEmpty()) {
+                    item(key = "archived-categories") {
+                        GlassPanel {
+                            Text("Archived categories", style = MaterialTheme.typography.titleMedium)
+                            uiState.archivedCategories.forEach { category ->
+                                TextButton(onClick = { onRestoreCategory(category.id) }) {
+                                    Text("Restore ${category.name}")
+                                }
+                            }
+                        }
+                    }
+                }
                 item {
                     GlassPanel {
                         Text("Tools", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)

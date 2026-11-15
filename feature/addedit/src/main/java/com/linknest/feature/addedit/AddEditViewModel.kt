@@ -32,7 +32,6 @@ import java.time.LocalDate
 import java.time.ZoneId
 import javax.inject.Inject
 import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -112,7 +111,7 @@ private data class AddEditFormSnapshot(
 @OptIn(FlowPreview::class)
 @HiltViewModel
 class AddEditViewModel @Inject constructor(
-    savedStateHandle: SavedStateHandle,
+    private val savedStateHandle: SavedStateHandle,
     observeSelectableCategoriesUseCase: ObserveSelectableCategoriesUseCase,
     observeTagsUseCase: ObserveTagsUseCase,
     private val getWebsiteUseCase: GetWebsiteUseCase,
@@ -136,6 +135,8 @@ class AddEditViewModel @Inject constructor(
     val uiState: StateFlow<AddEditUiState> = _uiState.asStateFlow()
 
     init {
+        _uiState.value = restoreDraft(_uiState.value)
+
         viewModelScope.launch {
             observeSelectableCategoriesUseCase().collect { categories ->
                 var autoAssignedCategoryId: Long? = null
@@ -215,7 +216,7 @@ class AddEditViewModel @Inject constructor(
                         ),
                     )
                     baselineSnapshot = loadedState.toFormSnapshot()
-                    _uiState.value = loadedState.copy(hasUnsavedChanges = false)
+                    _uiState.value = restoreDraft(loadedState.copy(hasUnsavedChanges = false))
                     urlFlow.value = website.normalizedUrl
                 }
             }
@@ -481,7 +482,7 @@ class AddEditViewModel @Inject constructor(
             baselineSnapshot = _uiState.value.toFormSnapshot()
         }
         if (!output.requiresDuplicateDecision && output.wasPersisted) {
-            delay(900)
+            savedStateHandle.remove<android.os.Bundle>("draft")
             _uiState.update { it.copy(saveCompleted = true) }
         }
     }
@@ -490,6 +491,31 @@ class AddEditViewModel @Inject constructor(
         _uiState.update { current ->
             transform(current).withUnsavedChanges(computeHasUnsavedChangesFor)
         }
+        val state = _uiState.value
+        savedStateHandle["draft"] = android.os.Bundle().apply {
+            putString("url", state.rawUrl)
+            state.selectedCategoryId?.let { putLong("category", it) }
+            putStringArrayList("tags", ArrayList(state.selectedTags))
+            putString("note", state.note); putString("reason", state.reasonSaved)
+            putString("source", state.sourceLabel); putString("label", state.customLabel)
+            putString("date", state.revisitDateInput)
+            putString("priority", state.priority.name); putString("followUp", state.followUpStatus.name)
+        }
+    }
+
+    private fun restoreDraft(state: AddEditUiState): AddEditUiState {
+        val draft = savedStateHandle.get<android.os.Bundle>("draft") ?: return state
+        return state.copy(
+            rawUrl = draft.getString("url", state.rawUrl),
+            selectedCategoryId = if (draft.containsKey("category")) draft.getLong("category") else state.selectedCategoryId,
+            selectedTags = draft.getStringArrayList("tags") ?: state.selectedTags,
+            note = draft.getString("note", state.note), reasonSaved = draft.getString("reason", state.reasonSaved),
+            sourceLabel = draft.getString("source", state.sourceLabel), customLabel = draft.getString("label", state.customLabel),
+            revisitDateInput = draft.getString("date", state.revisitDateInput),
+            priority = runCatching { WebsitePriority.valueOf(draft.getString("priority").orEmpty()) }.getOrDefault(state.priority),
+            followUpStatus = runCatching { FollowUpStatus.valueOf(draft.getString("followUp").orEmpty()) }.getOrDefault(state.followUpStatus),
+            hasUnsavedChanges = true,
+        )
     }
 
     private val computeHasUnsavedChangesFor: (AddEditUiState) -> Boolean = { state ->

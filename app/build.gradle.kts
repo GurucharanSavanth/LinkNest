@@ -84,7 +84,6 @@ dependencies {
     implementation(libs.androidx.hilt.work)
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.coil.core)
-    implementation(libs.coil.network.okhttp)
     ksp(libs.hilt.compiler)
 
     testImplementation(libs.junit)

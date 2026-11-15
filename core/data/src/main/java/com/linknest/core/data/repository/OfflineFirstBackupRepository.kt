@@ -191,7 +191,11 @@ class OfflineFirstBackupRepository @Inject constructor(
             warnings.add("Backup schema is older than current database; compatible restore was attempted.")
         }
 
+        com.linknest.core.data.backup.validateBackup(snapshot)
         validateForeignKeys(snapshot)
+        if (snapshot.iconCache.isNotEmpty() || snapshot.websites.any { it.customIconUri != null }) {
+            warnings.add("Device-local images were omitted; remote icons can be fetched again.")
+        }
 
         val summary = try {
             database.withTransaction {
@@ -203,7 +207,7 @@ class OfflineFirstBackupRepository @Inject constructor(
                 restoreMappings(snapshot.mappings)
                 restoreSavedFilters(snapshot.savedFilters)
                 restoreEvents(snapshot.events)
-                restoreIconCache(snapshot.iconCache)
+                // Cache paths and content grants are local to the exporting installation.
                 restoreRecentQueries(snapshot.recentQueries)
 
                 ImportSummary(
@@ -213,11 +217,13 @@ class OfflineFirstBackupRepository @Inject constructor(
                     importedMappings = snapshot.mappings.size,
                     importedSavedFilters = snapshot.savedFilters.size,
                     importedEvents = snapshot.events.size,
-                    importedIconCacheEntries = snapshot.iconCache.size,
+                    importedIconCacheEntries = 0,
                     importedRecentQueries = snapshot.recentQueries.size,
                     skippedWebsites = 0,
                 )
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             throw BackupRestoreException("Import failed: ${e.message}. Original data was preserved.", e)
         }
@@ -326,7 +332,7 @@ class OfflineFirstBackupRepository @Inject constructor(
                     ogImageUrl = website.ogImageUrl,
                     faviconUrl = website.faviconUrl,
                     chosenIconSource = website.chosenIconSource,
-                    customIconUri = website.customIconUri,
+                    customIconUri = null,
                     emojiIcon = website.emojiIcon,
                     tileSizeDp = website.tileSizeDp,
                     sortOrder = website.sortOrder,

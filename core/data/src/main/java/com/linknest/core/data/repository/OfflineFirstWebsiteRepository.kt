@@ -146,12 +146,19 @@ class OfflineFirstWebsiteRepository @Inject constructor(
             limit = limit,
         ).map { row -> row.asSearchResultItem() }
 
-    override suspend fun getAllWebsiteItems(): List<WebsiteListItem> =
-        buildList {
-            websiteDao.getAllWebsites().forEach { entity ->
-                add(hydrateWebsite(entity))
-            }
+    override suspend fun getAllWebsiteItems(): List<WebsiteListItem> {
+        val entries = websiteDao.getAllWebsites()
+        val icons = iconCacheDao.getAll().associateBy { it.websiteId }
+        val tags = tagDao.getAllTags().associateBy { it.id }
+        val assignments = tagDao.getAllCrossRefs().groupBy { it.websiteId }
+        val duplicates = com.linknest.core.data.mapper.duplicateCounts(entries)
+        return entries.map { entry ->
+            entry.asWebsiteListItem(
+                cachedIconUri = icons[entry.id]?.localUri,
+                tagNames = assignments[entry.id].orEmpty().mapNotNull { tags[it.tagId]?.name },
+            ).copy(duplicateCount = duplicates[entry.id] ?: 0)
         }
+    }
 
     override suspend fun getWebsiteById(websiteId: Long): WebsiteListItem? {
         val website = websiteDao.getWebsiteById(websiteId) ?: return null
@@ -213,12 +220,17 @@ class OfflineFirstWebsiteRepository @Inject constructor(
     }
 
     override suspend fun moveWebsiteToCategory(websiteId: Long, targetCategoryId: Long) {
-        websiteDao.updateSortOrder(
-            websiteId = websiteId,
-            categoryId = targetCategoryId,
-            sortOrder = getNextSortOrder(targetCategoryId),
-            updatedAt = timeProvider.now(),
-        )
+        database.withTransaction {
+            val existing = websiteDao.getWebsiteById(websiteId) ?: error("Website no longer exists.")
+            if (existing.categoryId != targetCategoryId) {
+                websiteDao.updateSortOrder(
+                    websiteId = websiteId,
+                    categoryId = targetCategoryId,
+                    sortOrder = getNextSortOrder(targetCategoryId),
+                    updatedAt = timeProvider.now(),
+                )
+            }
+        }
         searchIndexRepository.indexWebsite(websiteId)
     }
 

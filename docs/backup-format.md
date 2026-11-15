@@ -1,32 +1,11 @@
-# Backup Format
+# Backup format
 
-Current implementation supports plain JSON export and encrypted `.lnen` payloads. This document records the current format; it is not yet the hardened target format.
+LinkNest writes format-v2 JSON envelopes containing kind `linknest.backup`, metadata, and base64-encoded GZIP snapshot data. SHA-256 covers the compressed bytes. This detects accidental corruption; it does not authenticate a file and is not encryption.
 
-## Current Top-Level JSON
+Both encoded input and expanded snapshot text are limited to 32 MiB of characters. External file reads stop at that limit before allocating the complete input. Legacy plain snapshot JSON remains readable. Database schema versions 1 through 6 are supported; newer versions are rejected.
 
-- `schemaVersion`: integer, current default is `2`.
-- `exportedAt`: epoch milliseconds.
-- `categories`: category rows.
-- `websites`: website rows.
-- `tags`: tag rows.
-- `websiteTags`: website/tag cross references.
-- `mappings`: domain/category mappings.
-- `savedFilters`: optional saved filter rows.
-- `events`: optional recent integrity events.
+Snapshots contain categories, websites, tags, associations, mappings, saved filters, integrity events, recent queries, optional preferences and legacy cache metadata. Device-local image files and SAF grants are not portable. Restores discard cache paths/custom image URIs and report the omission. The chosen local backup folder is preserved.
 
-## Current Export Behavior
+Import previews counts and requires explicit replacement confirmation. The previous snapshot is staged before replacement. Room table changes are transactional; preferences and search-index updates occur after commit and may produce warnings. The previous staged snapshot can be selected with Import last export for recovery; it is replaced by subsequent exports/restores. Store an external copy for durable retention.
 
-`BackupManager.export` serializes a `BackupSnapshot`, limits payload size to 8 MiB of JSON characters, optionally encrypts using `BackupCryptoManager`, then writes into LinkNest app backup storage with either `.json` or `.lnen` extension.
-
-## Current Import Behavior
-
-`BackupManager.parse` enforces the same 8 MiB size guard, decrypts if needed, checks required arrays, and parses JSON into `BackupSnapshot`. `OfflineFirstBackupRepository.importSnapshot` runs database writes inside a Room transaction, maps imported IDs to local IDs, skips duplicate websites, imports mappings/saved filters/events, then rebuilds AppSearch after the transaction.
-
-## Gaps Before Hardening
-
-- No magic/header or `formatVersion` envelope.
-- No checksum verification.
-- No app version metadata.
-- No explicit compression metadata.
-- No documented backward compatibility plan for older exports.
-- No backup-specific round-trip tests found yet.
+Validation rejects invalid identities, duplicate names, missing relationships, invalid values and unsupported saved-filter enums before clearing tables. Tests cover serializer compatibility and bounded reads; Android tests cover migration association preservation and restore transaction rollback.

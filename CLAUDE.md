@@ -1,3 +1,5 @@
+> Repository rules: follow [AGENTS.md](AGENTS.md). This reference is descriptive; dated audit status may be superseded by repair evidence.
+
 # LinkNest — Project Reference
 
 ## 1. PROJECT OVERVIEW
@@ -9,7 +11,7 @@
 **DI:** Hilt
 **Persistence:** Room + DataStore + AppSearch
 **Background:** WorkManager
-**Networking:** Jsoup (metadata) + OkHttp (health checks)
+**Networking:** Guarded OkHttp transport (metadata, icons and health) + Jsoup HTML parsing
 **Image Loading:** Coil
 
 ## 2. MODULE DEPENDENCY GRAPH

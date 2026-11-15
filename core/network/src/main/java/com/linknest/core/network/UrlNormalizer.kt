@@ -46,9 +46,8 @@ class UrlNormalizer @Inject constructor() {
         originalScheme: String,
         strict: Boolean,
     ): NormalizedUrl {
-        if (strict) {
-            require(parsed.userInfo.isNullOrBlank()) { "Credentials in URLs are not supported." }
-            require(parsed.rawAuthority?.contains('@') != true) { "Credentials in URLs are not supported." }
+        require(parsed.userInfo.isNullOrBlank() && parsed.rawAuthority?.contains('@') != true) {
+            "Credentials in URLs are not supported."
         }
 
         val host = parsed.host?.trim()
@@ -61,19 +60,18 @@ class UrlNormalizer @Inject constructor() {
             UrlSecurityPolicy.normalizeHostLenient(host)
         }
 
-        val path = parsed.path?.ifBlank { "/" } ?: "/"
+        val path = parsed.rawPath?.ifBlank { "/" } ?: "/"
         val normalizedPort = parsed.port
-            .takeUnless { it == 80 || it == 443 }
+            .takeUnless { it == 443 || (originalScheme == "http" && it == 80) }
             ?: -1
-        val normalized = URI(
-            "https",
-            null,
-            asciiHost,
-            normalizedPort,
-            path,
-            parsed.query,
-            parsed.fragment,
-        ).toString()
+        val authority = URI("https", null, asciiHost, normalizedPort, null, null, null).toString()
+        // Preserve escaped delimiters and signed query values verbatim.
+        val normalized = buildString {
+            append(authority)
+            append(path)
+            parsed.rawQuery?.let { append('?'); append(it) }
+            parsed.rawFragment?.let { append('#'); append(it) }
+        }
 
         return NormalizedUrl(
             rawInput = rawUrl,

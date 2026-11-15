@@ -300,6 +300,10 @@ private fun DashboardScreen(
                     CircularProgressIndicator(modifier = Modifier.semantics { contentDescription = "Loading dashboard" })
                 }
             } else {
+                BoxWithConstraints {
+                val columns = if (uiState.dashboard.layoutMode == LayoutMode.GRID) {
+                    ((maxWidth - 32.dp) / uiState.dashboard.adaptiveGridMinSizeDp.dp).toInt().coerceAtLeast(1)
+                } else 1
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(innerPadding),
                     contentPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 16.dp),
@@ -319,23 +323,44 @@ private fun DashboardScreen(
                     uiState.dashboard.pinnedSection?.takeIf { it.websites.isNotEmpty() }?.let { pinned ->
                         item(key = "pinned") { PinnedSection(section = pinned, onOpenWebsite = onOpenWebsite) }
                     }
-                    items(uiState.dashboard.categories, key = { "category-${it.id}" }) { category ->
-                        CategorySection(
-                            category = category,
-                            layoutMode = uiState.dashboard.layoutMode,
-                            adaptiveMinTileWidth = uiState.dashboard.adaptiveGridMinSizeDp,
-                            focusedCategoryId = uiState.focusedCategoryId,
-                            focusedWebsiteId = uiState.focusedWebsiteId,
-                            onToggleCategory = { onToggleCategory(category.id) },
-                            onCategoryLongPress = { categoryActionTarget = category },
-                            onOpenWebsite = onOpenWebsite,
-                            onWebsiteLongPress = { websiteActionTarget = it },
-                        )
+                    if (uiState.dashboard.categories.isEmpty()) {
+                        item(key = "empty") { Text("No categories match. Clear search or restore archived categories in Settings.") }
+                    }
+                    uiState.dashboard.categories.forEach { category ->
+                        item(key = "category-${category.id}") {
+                            CategoryHeader(
+                                category = category.copy(isCollapsed = true),
+                                focusedCategoryId = uiState.focusedCategoryId,
+                                onToggleCategory = { onToggleCategory(category.id) },
+                                onCategoryLongPress = { categoryActionTarget = category },
+                            )
+                        }
+                        if (!category.isCollapsed) {
+                            items(category.websites.chunked(columns), key = { "row-${it.first().id}" }) { websites ->
+                                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    websites.forEach { website ->
+                                        key(website.id) {
+                                            WebsiteTile(
+                                                website = website,
+                                                accentColor = category.colorHex.toColorOr(MaterialTheme.colorScheme.primary),
+                                                modifier = Modifier.weight(1f),
+                                                layoutMode = uiState.dashboard.layoutMode,
+                                                isFocused = uiState.focusedWebsiteId == website.id,
+                                                onOpenWebsite = { onOpenWebsite(website) },
+                                                onLongPress = { websiteActionTarget = website },
+                                            )
+                                        }
+                                    }
+                                    repeat(columns - websites.size) { Spacer(Modifier.weight(1f)) }
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
     }
+}
 }
 
 @Composable
@@ -495,22 +520,16 @@ private fun PinnedSection(section: DashboardSmartSection, onOpenWebsite: (Websit
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun CategorySection(
+private fun CategoryHeader(
     category: DashboardCategory,
-    layoutMode: LayoutMode,
-    adaptiveMinTileWidth: Int,
     focusedCategoryId: Long?,
-    focusedWebsiteId: Long?,
     onToggleCategory: () -> Unit,
     onCategoryLongPress: () -> Unit,
-    onOpenWebsite: (WebsiteListItem) -> Unit,
-    onWebsiteLongPress: (WebsiteListItem) -> Unit,
 ) {
     val accentColor = category.colorHex.toColorOr(MaterialTheme.colorScheme.primary)
     Surface(
         modifier = Modifier
-            .fillMaxWidth()
-            .animateContentSize(),
+            .fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
     ) {
@@ -538,52 +557,6 @@ private fun CategorySection(
                 }
             }
 
-            AnimatedVisibility(visible = !category.isCollapsed) {
-                Column {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    if (layoutMode == LayoutMode.LIST) {
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            category.websites.forEach { website ->
-                                key(website.id) {
-                                    WebsiteTile(
-                                        website = website,
-                                        accentColor = accentColor,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        isFocused = focusedWebsiteId == website.id,
-                                        onOpenWebsite = { onOpenWebsite(website) },
-                                        onLongPress = { onWebsiteLongPress(website) },
-                                    )
-                                }
-                            }
-                        }
-                    } else {
-                        BoxWithConstraints {
-                            val spacing = 12.dp
-                            val columns = (maxWidth / adaptiveMinTileWidth.dp).toInt().coerceAtLeast(1)
-                            val tileWidth = ((maxWidth - spacing * (columns - 1)) / columns).coerceAtLeast(144.dp)
-                            FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(spacing),
-                                verticalArrangement = Arrangement.spacedBy(spacing),
-                                maxItemsInEachRow = columns,
-                            ) {
-                                category.websites.forEach { website ->
-                                    key(website.id) {
-                                        WebsiteTile(
-                                            website = website,
-                                            accentColor = accentColor,
-                                            modifier = Modifier.width(tileWidth),
-                                            layoutMode = layoutMode,
-                                            isFocused = focusedWebsiteId == website.id,
-                                            onOpenWebsite = { onOpenWebsite(website) },
-                                            onLongPress = { onWebsiteLongPress(website) },
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
         }
     }
 }
@@ -817,9 +790,11 @@ private fun MiniTagChip(tag: String) {
 
 @Composable
 private fun WebsiteIcon(title: String, emoji: String?, iconUrl: String?, accentColor: Color) {
+    var failed by remember(iconUrl) { mutableStateOf(false) }
     when {
-        !iconUrl.isNullOrBlank() -> AsyncImage(
+        !iconUrl.isNullOrBlank() && !failed -> AsyncImage(
             model = iconUrl,
+            onError = { failed = true },
             contentDescription = "Website icon for $title",
             modifier = Modifier.size(42.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surface),
             contentScale = ContentScale.Crop,

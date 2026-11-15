@@ -10,6 +10,15 @@ import org.junit.Test
  */
 class UrlSecurityPolicyTest {
 
+    @Test fun connectionAddresses_rejectPrivateMulticastAndMappedLoopback() {
+        listOf("127.0.0.1", "10.1.2.3", "169.254.1.1", "100.64.0.1", "::1", "fc00::1", "224.0.0.1").forEach {
+            assertThrows(IllegalArgumentException::class.java) {
+                UrlSecurityPolicy.requirePublicAddress(java.net.InetAddress.getByName(it))
+            }
+        }
+        UrlSecurityPolicy.requirePublicAddress(java.net.InetAddress.getByName("8.8.8.8"))
+    }
+
     @Test
     fun requirePublicWebTarget_rejectsNonHttpScheme() {
         assertThrows(Exception::class.java) {

@@ -48,6 +48,15 @@ class AddWebsitePipeline @Inject constructor(
         input: AddWebsitePipelineInput,
         onPhaseChanged: (AddWebsitePhase) -> Unit = {},
     ): ActionResult<AddWebsitePipelineOutput> {
+        if (input.duplicateDecision == DuplicateDecision.CANCEL_SAVE) {
+            return ActionResult.Failure(
+                issue = ActionIssue(
+                    code = "SAVE_CANCELLED",
+                    message = "Save cancelled.",
+                ),
+            )
+        }
+
         val issues = mutableListOf<ActionIssue>()
         val isEditMode = input.existingWebsiteId != null
 
@@ -178,15 +187,6 @@ class AddWebsitePipeline @Inject constructor(
             return ActionResult.PartialSuccess(output, issues + duplicateIssue)
         }
 
-        if (input.duplicateDecision == DuplicateDecision.CANCEL_SAVE) {
-            return ActionResult.Failure(
-                issue = ActionIssue(
-                    code = "SAVE_CANCELLED",
-                    message = "Save cancelled.",
-                ),
-            )
-        }
-
         val resolvedExistingWebsiteId = if (isEditMode) {
             input.existingWebsiteId
         } else {
@@ -198,6 +198,25 @@ class AddWebsitePipeline @Inject constructor(
                 else -> null
             }
         }
+
+        if (!isEditMode && input.duplicateDecision in setOf(DuplicateDecision.MOVE_EXISTING, DuplicateDecision.MERGE_METADATA, DuplicateDecision.REPLACE_EXISTING) && resolvedExistingWebsiteId == null) {
+            return ActionResult.Failure(ActionIssue("DUPLICATE_MISSING", "The original website no longer exists. Review duplicates again."))
+        }
+        val existingWebsite = resolvedExistingWebsiteId?.let { websiteRepository.getWebsiteById(it) }
+        if (input.duplicateDecision == DuplicateDecision.MOVE_EXISTING) {
+            val existing = existingWebsite ?: return ActionResult.Failure(
+                ActionIssue(code = "DUPLICATE_MISSING", message = "The original website no longer exists."),
+            )
+            return com.linknest.core.action.actionResult("MOVE_FAILED", "Unable to move website.") {
+                websiteRepository.moveWebsiteToCategory(existing.id, categoryId)
+                AddWebsitePipelineOutput(existing.id, categoryId, existing.normalizedUrl, preview,
+                    suggestion, smartCapture, duplicateCheck, existing.cachedIconUri, false, true)
+            }
+        }
+        if (resolvedExistingWebsiteId != null && existingWebsite == null) {
+            return ActionResult.Failure(ActionIssue("WEBSITE_MISSING", "The original website no longer exists."))
+        }
+        val mergeTarget = existingWebsite.takeIf { input.duplicateDecision == DuplicateDecision.MERGE_METADATA }
 
         onPhaseChanged(AddWebsitePhase.RESOLVING_ICON)
         val iconResolution = when (val result = iconResolutionPipeline(
@@ -225,11 +244,8 @@ class AddWebsitePipeline @Inject constructor(
             }
         }
 
-        val resolvedTags = ensureTagsUseCase((input.tagNames + smartCapture.suggestedTags).distinct())
+        val resolvedTags = ensureTagsUseCase((mergeTarget?.tagNames.orEmpty() + input.tagNames + smartCapture.suggestedTags).distinct())
         val now = System.currentTimeMillis()
-        val existingWebsite = resolvedExistingWebsiteId?.let { id ->
-            websiteRepository.getWebsiteById(id)
-        }
         val nextSortOrder = existingWebsite
             ?.let { existing ->
                 if (existing.categoryId == categoryId) existing.sortOrder else null
@@ -246,28 +262,28 @@ class AddWebsitePipeline @Inject constructor(
         val persistResult = persistWebsiteAction(
             PersistWebsiteRequest(
                 existingWebsiteId = resolvedExistingWebsiteId,
-                categoryId = categoryId,
-                title = (smartCapture.cleanedTitle ?: metadata.title).ifBlank { normalized.domain },
-                canonicalUrl = metadata.canonicalUrl,
+                categoryId = mergeTarget?.categoryId ?: categoryId,
+                title = mergeTarget?.title ?: (smartCapture.cleanedTitle ?: metadata.title).ifBlank { normalized.domain },
+                canonicalUrl = metadata.canonicalUrl ?: mergeTarget?.canonicalUrl,
                 finalUrl = metadata.finalUrl,
                 normalizedUrl = normalized.normalizedUrl,
                 domain = normalized.domain,
                 ogImageUrl = metadata.ogImageUrl,
                 faviconUrl = metadata.faviconUrl,
-                chosenIconSource = iconResolution.chosenIconSource,
-                customIconUri = input.customIconUri,
-                emojiIcon = input.emojiIcon,
-                tileSizeDp = input.tileSizeDp,
-                sortOrder = nextSortOrder,
-                isPinned = input.isPinned,
+                chosenIconSource = mergeTarget?.chosenIconSource ?: iconResolution.chosenIconSource,
+                customIconUri = mergeTarget?.customIconUri ?: input.customIconUri,
+                emojiIcon = mergeTarget?.emojiIcon ?: input.emojiIcon,
+                tileSizeDp = mergeTarget?.tileSizeDp ?: input.tileSizeDp,
+                sortOrder = mergeTarget?.sortOrder ?: nextSortOrder,
+                isPinned = mergeTarget?.isPinned ?: input.isPinned,
                 healthStatus = healthStatus,
-                note = input.note,
-                reasonSaved = input.reasonSaved,
-                priority = input.priority,
-                followUpStatus = input.followUpStatus,
-                revisitAt = input.revisitAt,
-                sourceLabel = input.sourceLabel,
-                customLabel = input.customLabel,
+                note = mergeTarget?.note ?: input.note,
+                reasonSaved = mergeTarget?.reasonSaved ?: input.reasonSaved,
+                priority = mergeTarget?.priority ?: input.priority,
+                followUpStatus = mergeTarget?.followUpStatus ?: input.followUpStatus,
+                revisitAt = mergeTarget?.revisitAt ?: input.revisitAt,
+                sourceLabel = mergeTarget?.sourceLabel ?: input.sourceLabel,
+                customLabel = mergeTarget?.customLabel ?: input.customLabel,
                 createdAt = now,
                 updatedAt = now,
                 lastCheckedAt = now,

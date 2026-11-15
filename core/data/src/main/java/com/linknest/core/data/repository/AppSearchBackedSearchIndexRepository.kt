@@ -36,6 +36,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONObject
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -50,6 +52,8 @@ class AppSearchBackedSearchIndexRepository @Inject constructor(
     private val savedFilterDao: SavedFilterDao,
     @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : SearchIndexRepository {
+    private val sessionMutex = Mutex()
+
     @Volatile
     private var searchSession: AppSearchSession? = null
 
@@ -83,7 +87,7 @@ class AppSearchBackedSearchIndexRepository @Inject constructor(
             rebuildAll(session)
             hasWarmedIndex = true
         }.getOrElse { throwable ->
-            if (throwable is CancellationException) throw throwable
+            throw throwable
         }
     }
 
@@ -318,8 +322,8 @@ class AppSearchBackedSearchIndexRepository @Inject constructor(
         )
     }
 
-    private suspend fun requireSession(): AppSearchSession {
-        searchSession?.let { return it }
+    private suspend fun requireSession(): AppSearchSession = sessionMutex.withLock {
+        searchSession?.let { return@withLock it }
 
         val created = runCatching {
             createSession()
@@ -331,7 +335,7 @@ class AppSearchBackedSearchIndexRepository @Inject constructor(
         }.getOrThrow()
 
         searchSession = created
-        return created
+        created
     }
 
     private suspend fun createSession(): AppSearchSession {

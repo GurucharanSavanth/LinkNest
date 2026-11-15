@@ -110,7 +110,7 @@ class ObserveDashboardUseCase @Inject constructor(
                 add(
                     DashboardSmartSection(
                         id = "last_imported",
-                        title = "Last Imported",
+                        title = "Recently Added",
                         websites = lastImported,
                     ),
                 )

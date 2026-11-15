@@ -37,7 +37,15 @@ class BackupFileManager @Inject constructor(
         dir.listFiles()?.forEach { f ->
             if (f.name.startsWith("latest-backup.") && f.name != file.name) f.delete()
         }
-        file.writeText(pkg.payload, Charsets.UTF_8)
+        val atomic = android.util.AtomicFile(file)
+        val output = atomic.startWrite()
+        try {
+            output.write(pkg.payload.toByteArray(Charsets.UTF_8))
+            atomic.finishWrite(output)
+        } catch (failure: Exception) {
+            atomic.failWrite(output)
+            throw failure
+        }
         return file
     }
 
@@ -64,7 +72,7 @@ class BackupFileManager @Inject constructor(
         val file = getStagedBackup()
             ?: return@withContext ReadResult.Error("No backup found. Export first.")
         runCatching {
-            val text = file.readText(Charsets.UTF_8)
+            val text = file.bufferedReader(Charsets.UTF_8).use { it.readBackupText() }
             if (text.isBlank()) ReadResult.Error("Staged backup file is empty.")
             else ReadResult.Ok(text)
         }.getOrElse { e -> ReadResult.Error("Failed to read backup: ${e.message}") }
@@ -133,7 +141,7 @@ class BackupFileManager @Inject constructor(
         runCatching {
             val text = resolver.openInputStream(uri)
                 ?.bufferedReader(Charsets.UTF_8)
-                ?.use { it.readText() }
+                ?.use { it.readBackupText() }
             when {
                 text == null -> ReadResult.Error("Could not open selected file.")
                 text.isBlank() -> ReadResult.Error("Selected file is empty.")

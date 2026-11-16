@@ -1,6 +1,6 @@
 package com.linknest.feature.dashboard
 
-import android.graphics.Color.parseColor
+import androidx.core.graphics.toColorInt
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
@@ -810,7 +810,7 @@ private fun WebsiteIcon(title: String, emoji: String?, iconUrl: String?, accentC
     }
 }
 
-private fun String.toColorOr(fallback: Color): Color = runCatching { Color(parseColor(this)) }.getOrDefault(fallback)
+private fun String.toColorOr(fallback: Color): Color = runCatching { Color(this.toColorInt()) }.getOrDefault(fallback)
 
 private fun WebsiteListItem.tileContentDescription(): String = buildString {
     append(title)

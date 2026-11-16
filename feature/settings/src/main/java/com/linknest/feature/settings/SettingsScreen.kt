@@ -484,7 +484,7 @@ private fun PasteImportDialog(
                 value = text,
                 onValueChange = { text = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Backup payload (.json or .lnen)") },
+                label = { Text("Backup payload (.json)") },
                 minLines = 5,
                 maxLines = 12,
             )

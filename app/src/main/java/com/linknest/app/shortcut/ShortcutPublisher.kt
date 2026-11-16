@@ -1,11 +1,11 @@
 package com.linknest.app.shortcut
 
+import androidx.core.net.toUri
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ShortcutInfo
 import android.content.pm.ShortcutManager
 import android.graphics.drawable.Icon
-import android.net.Uri
 import com.linknest.app.MainActivity
 import com.linknest.feature.search.SearchSmartCollection
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -51,7 +51,7 @@ class ShortcutPublisher @Inject constructor(
         .setRank(rank)
         .setIcon(Icon.createWithResource(context, iconRes))
         .setIntent(
-            Intent(Intent.ACTION_VIEW, Uri.parse(deepLink), context, MainActivity::class.java).apply {
+            Intent(Intent.ACTION_VIEW, deepLink.toUri(), context, MainActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 `package` = context.packageName
             },

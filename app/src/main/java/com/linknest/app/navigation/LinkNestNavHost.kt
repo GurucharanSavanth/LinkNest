@@ -1,9 +1,9 @@
 package com.linknest.app.navigation
 
+import androidx.core.net.toUri
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -57,7 +57,7 @@ fun LinkNestNavHost(
 }
 
 private fun openExternalWebsite(context: Context, url: String) {
-    val parsed = runCatching { Uri.parse(url) }.getOrNull()
+    val parsed = runCatching { url.toUri() }.getOrNull()
     val scheme = parsed?.scheme?.lowercase()
     val host = parsed?.host
     if ((scheme != "http" && scheme != "https") || host.isNullOrBlank()) {

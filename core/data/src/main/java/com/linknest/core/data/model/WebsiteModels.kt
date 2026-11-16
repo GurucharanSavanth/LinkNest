@@ -58,6 +58,28 @@ data class PersistedIconCache(
     val updatedAt: Long,
 )
 
+/** Metadata merge fills missing values while preserving the saved link and personal choices. */
+fun PersistWebsiteRequest.mergeMetadataInto(existing: com.linknest.core.model.WebsiteListItem): PersistWebsiteRequest {
+    val useIncomingIcon = existing.cachedIconUri == null &&
+        existing.chosenIconSource !in setOf(IconSource.CUSTOM, IconSource.EMOJI) && iconCache != null
+    return copy(
+        existingWebsiteId = existing.id,
+        categoryId = existing.categoryId, sortOrder = existing.sortOrder,
+        normalizedUrl = existing.normalizedUrl, domain = existing.domain, title = existing.title,
+        healthStatus = existing.healthStatus, lastCheckedAt = existing.lastCheckedAt,
+        canonicalUrl = existing.canonicalUrl ?: canonicalUrl,
+        finalUrl = existing.finalUrl ?: finalUrl.takeIf { normalizedUrl == existing.normalizedUrl },
+        ogImageUrl = existing.ogImageUrl ?: ogImageUrl, faviconUrl = existing.faviconUrl ?: faviconUrl,
+        chosenIconSource = if (useIncomingIcon) chosenIconSource else existing.chosenIconSource,
+        iconCache = if (useIncomingIcon) iconCache else null,
+        customIconUri = existing.customIconUri, emojiIcon = existing.emojiIcon, tileSizeDp = existing.tileSizeDp,
+        isPinned = existing.isPinned, note = existing.note ?: note, reasonSaved = existing.reasonSaved ?: reasonSaved,
+        priority = existing.priority, followUpStatus = existing.followUpStatus,
+        revisitAt = existing.revisitAt ?: revisitAt,
+        sourceLabel = existing.sourceLabel ?: sourceLabel, customLabel = existing.customLabel ?: customLabel,
+    )
+}
+
 data class DomainCategoryMapping(
     val domain: String,
     val categoryId: Long,

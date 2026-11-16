@@ -1,5 +1,6 @@
 package com.linknest.app.share
 
+import androidx.core.net.toUri
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -106,7 +107,7 @@ class ShareEntryActivity : ComponentActivity() {
         startActivity(
             Intent(
                 Intent.ACTION_VIEW,
-                Uri.parse("linknest://add?url=${Uri.encode(normalizedUrl)}"),
+                "linknest://add?url=${Uri.encode(normalizedUrl)}".toUri(),
                 this,
                 MainActivity::class.java,
             ).apply {
@@ -121,7 +122,7 @@ class ShareEntryActivity : ComponentActivity() {
         startActivity(
             Intent(
                 Intent.ACTION_VIEW,
-                Uri.parse("linknest://dashboard"),
+                "linknest://dashboard".toUri(),
                 this,
                 MainActivity::class.java,
             ).apply {

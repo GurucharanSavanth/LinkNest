@@ -1,5 +1,6 @@
 package com.linknest.feature.addedit
 
+import androidx.core.graphics.toColorInt
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.foundation.background
@@ -661,7 +662,7 @@ private fun CategoryPicker(
                         modifier = Modifier
                             .size(32.dp)
                             .clip(CircleShape)
-                            .background(Color(android.graphics.Color.parseColor(selectedCategory.colorHex)).copy(alpha = 0.18f)),
+                            .background(Color(selectedCategory.colorHex.toColorInt()).copy(alpha = 0.18f)),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(selectedCategory.iconValue ?: selectedCategory.name.take(1))
@@ -729,7 +730,7 @@ private fun CreateCategorySheet(
                             .semantics { contentDescription = "Color $candidate"; selected = candidate == colorHex }
                             .clip(CircleShape)
                             .clickable { colorHex = candidate },
-                        color = Color(android.graphics.Color.parseColor(candidate)),
+                        color = Color(candidate.toColorInt()),
                         tonalElevation = if (candidate == colorHex) 4.dp else 0.dp,
                     ) {}
                 }

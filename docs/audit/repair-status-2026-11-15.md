@@ -1,5 +1,7 @@
 # Repair status — 2026-11-15
 
+Follow-up implementation and verification: [2026-11-16 repairs](followup-2026-11-16.md). The report below records the earlier patch's state at handoff.
+
 Baseline: `0f9ad3a1017a6a261a44af61f4fe54465938a566`. Changes are applied to the working tree, without committing or publishing. The prior dated audit remains historical evidence. This report distinguishes implemented changes from verification still needed.
 
 ## Implemented behavior

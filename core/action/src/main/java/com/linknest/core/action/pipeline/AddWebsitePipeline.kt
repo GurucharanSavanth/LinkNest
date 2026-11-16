@@ -20,6 +20,7 @@ import com.linknest.core.action.model.SuggestCategoryInput
 import com.linknest.core.action.model.UpdateDomainMappingInput
 import com.linknest.core.data.mapper.asPreview
 import com.linknest.core.data.model.PersistWebsiteRequest
+import com.linknest.core.data.model.mergeMetadataInto
 import com.linknest.core.data.repository.WebsiteRepository
 import com.linknest.core.data.usecase.EnsureTagsUseCase
 import com.linknest.core.model.AddWebsitePhase
@@ -218,6 +219,9 @@ class AddWebsitePipeline @Inject constructor(
         }
         val mergeTarget = existingWebsite.takeIf { input.duplicateDecision == DuplicateDecision.MERGE_METADATA }
 
+        val persistedCategoryId = mergeTarget?.categoryId ?: categoryId
+        val persistedDomain = mergeTarget?.domain ?: normalized.domain
+
         onPhaseChanged(AddWebsitePhase.RESOLVING_ICON)
         val iconResolution = when (val result = iconResolutionPipeline(
             IconResolutionInput(
@@ -262,34 +266,34 @@ class AddWebsitePipeline @Inject constructor(
         val persistResult = persistWebsiteAction(
             PersistWebsiteRequest(
                 existingWebsiteId = resolvedExistingWebsiteId,
-                categoryId = mergeTarget?.categoryId ?: categoryId,
-                title = mergeTarget?.title ?: (smartCapture.cleanedTitle ?: metadata.title).ifBlank { normalized.domain },
-                canonicalUrl = metadata.canonicalUrl ?: mergeTarget?.canonicalUrl,
+                categoryId = categoryId,
+                title = (smartCapture.cleanedTitle ?: metadata.title).ifBlank { normalized.domain },
+                canonicalUrl = metadata.canonicalUrl,
                 finalUrl = metadata.finalUrl,
                 normalizedUrl = normalized.normalizedUrl,
                 domain = normalized.domain,
                 ogImageUrl = metadata.ogImageUrl,
                 faviconUrl = metadata.faviconUrl,
-                chosenIconSource = mergeTarget?.chosenIconSource ?: iconResolution.chosenIconSource,
-                customIconUri = mergeTarget?.customIconUri ?: input.customIconUri,
-                emojiIcon = mergeTarget?.emojiIcon ?: input.emojiIcon,
-                tileSizeDp = mergeTarget?.tileSizeDp ?: input.tileSizeDp,
-                sortOrder = mergeTarget?.sortOrder ?: nextSortOrder,
-                isPinned = mergeTarget?.isPinned ?: input.isPinned,
+                chosenIconSource = iconResolution.chosenIconSource,
+                customIconUri = input.customIconUri,
+                emojiIcon = input.emojiIcon,
+                tileSizeDp = input.tileSizeDp,
+                sortOrder = nextSortOrder,
+                isPinned = input.isPinned,
                 healthStatus = healthStatus,
-                note = mergeTarget?.note ?: input.note,
-                reasonSaved = mergeTarget?.reasonSaved ?: input.reasonSaved,
-                priority = mergeTarget?.priority ?: input.priority,
-                followUpStatus = mergeTarget?.followUpStatus ?: input.followUpStatus,
-                revisitAt = mergeTarget?.revisitAt ?: input.revisitAt,
-                sourceLabel = mergeTarget?.sourceLabel ?: input.sourceLabel,
-                customLabel = mergeTarget?.customLabel ?: input.customLabel,
+                note = input.note,
+                reasonSaved = input.reasonSaved,
+                priority = input.priority,
+                followUpStatus = input.followUpStatus,
+                revisitAt = input.revisitAt,
+                sourceLabel = input.sourceLabel,
+                customLabel = input.customLabel,
                 createdAt = now,
                 updatedAt = now,
                 lastCheckedAt = now,
                 tagIds = resolvedTags.map { it.id },
                 iconCache = iconResolution.persistedIconCache,
-            ),
+            ).let { request -> mergeTarget?.let(request::mergeMetadataInto) ?: request },
         )
         val websiteId = when (persistResult) {
             is ActionResult.Success -> persistResult.value
@@ -302,8 +306,8 @@ class AddWebsitePipeline @Inject constructor(
 
         when (val mappingResult = updateDomainMappingAction(
             UpdateDomainMappingInput(
-                domain = normalized.domain,
-                categoryId = categoryId,
+                domain = persistedDomain,
+                categoryId = persistedCategoryId,
             ),
         )) {
             is ActionResult.Failure -> issues += mappingResult.issue
@@ -314,8 +318,8 @@ class AddWebsitePipeline @Inject constructor(
         onPhaseChanged(AddWebsitePhase.SUCCESS)
         val output = AddWebsitePipelineOutput(
             websiteId = websiteId,
-            categoryId = categoryId,
-            normalizedUrl = normalized.normalizedUrl,
+            categoryId = persistedCategoryId,
+            normalizedUrl = mergeTarget?.normalizedUrl ?: normalized.normalizedUrl,
             metadataPreview = preview,
             categorySuggestion = suggestion,
             smartCapture = smartCapture,

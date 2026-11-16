@@ -10,10 +10,12 @@ import com.linknest.core.model.WebsiteListItem
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 
 class ObserveDashboardUseCase @Inject constructor(
     private val categoryRepository: CategoryRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
+    @param:com.linknest.core.common.coroutine.DefaultDispatcher private val defaultDispatcher: kotlinx.coroutines.CoroutineDispatcher,
 ) {
     operator fun invoke(): Flow<DashboardModel> = combine(
         categoryRepository.observeDashboardCategories(),
@@ -124,7 +126,7 @@ class ObserveDashboardUseCase @Inject constructor(
             tileDensityMode = preferences.tileDensityMode,
             adaptiveGridMinSizeDp = preferences.adaptiveGridMinSizeDp,
         )
-    }
+    }.flowOn(defaultDispatcher)
 
     private companion object {
         val ATTENTION_HEALTH_STATUSES = setOf(

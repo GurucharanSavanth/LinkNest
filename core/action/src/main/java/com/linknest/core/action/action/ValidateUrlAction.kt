@@ -1,6 +1,6 @@
 package com.linknest.core.action.action
 
-import android.net.Uri
+import androidx.core.net.toUri
 import com.linknest.core.action.ActionIssue
 import com.linknest.core.action.ActionResult
 import com.linknest.core.action.AppAction
@@ -14,7 +14,7 @@ class ValidateUrlAction @Inject constructor() : AppAction<NormalizedUrl, Normali
     }
 
     override suspend fun invoke(input: NormalizedUrl): ActionResult<NormalizedUrl> = when {
-        Uri.parse(input.normalizedUrl).scheme.isNullOrBlank() -> ActionResult.Failure(
+        input.normalizedUrl.toUri().scheme.isNullOrBlank() -> ActionResult.Failure(
             issue = ActionIssue(
                 code = "URL_SCHEME_REQUIRED",
                 message = "URL must include a scheme.",

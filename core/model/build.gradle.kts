@@ -27,5 +27,5 @@ kotlin {
 
 dependencies {
     compileOnly(platform(libs.androidx.compose.bom))
-    compileOnly("androidx.compose.runtime:runtime")
+    compileOnly(libs.androidx.compose.runtime)
 }

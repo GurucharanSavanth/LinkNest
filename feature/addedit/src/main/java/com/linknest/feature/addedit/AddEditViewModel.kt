@@ -139,22 +139,16 @@ class AddEditViewModel @Inject constructor(
 
         viewModelScope.launch {
             observeSelectableCategoriesUseCase().collect { categories ->
-                var autoAssignedCategoryId: Long? = null
-                _uiState.update { state ->
-                    val selectedCategoryId = state.selectedCategoryId ?: categories.firstOrNull()?.id?.also {
-                        autoAssignedCategoryId = it
-                    }
-                    state.copy(
-                        categories = categories,
-                        selectedCategoryId = selectedCategoryId,
-                    ).withUnsavedChanges(computeHasUnsavedChangesFor)
-                }
-                if (!uiState.value.isEditMode &&
-                    autoAssignedCategoryId != null &&
-                    baselineSnapshot.selectedCategoryId == null &&
-                    !uiState.value.hasUnsavedChanges
+                val current = uiState.value
+                val selectedCategoryId = current.selectedCategoryId ?: categories.firstOrNull()?.id
+                if (!current.isEditMode && current.selectedCategoryId == null &&
+                    baselineSnapshot.selectedCategoryId == null && current.toFormSnapshot() == baselineSnapshot
                 ) {
-                    baselineSnapshot = baselineSnapshot.copy(selectedCategoryId = autoAssignedCategoryId)
+                    baselineSnapshot = baselineSnapshot.copy(selectedCategoryId = selectedCategoryId)
+                }
+                _uiState.update { state ->
+                    state.copy(categories = categories, selectedCategoryId = selectedCategoryId)
+                        .withUnsavedChanges(::computeHasUnsavedChangesFor)
                 }
             }
         }
@@ -489,7 +483,7 @@ class AddEditViewModel @Inject constructor(
 
     private fun updateFormState(transform: (AddEditUiState) -> AddEditUiState) {
         _uiState.update { current ->
-            transform(current).withUnsavedChanges(computeHasUnsavedChangesFor)
+            transform(current).withUnsavedChanges(::computeHasUnsavedChangesFor)
         }
         val state = _uiState.value
         savedStateHandle["draft"] = android.os.Bundle().apply {
@@ -518,9 +512,8 @@ class AddEditViewModel @Inject constructor(
         )
     }
 
-    private val computeHasUnsavedChangesFor: (AddEditUiState) -> Boolean = { state ->
+    private fun computeHasUnsavedChangesFor(state: AddEditUiState): Boolean =
         state.toFormSnapshot() != baselineSnapshot
-    }
 
     private fun parseRevisitDate(raw: String): Long? {
         val trimmed = raw.trim()

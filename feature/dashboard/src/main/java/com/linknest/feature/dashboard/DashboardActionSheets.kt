@@ -1,6 +1,6 @@
 package com.linknest.feature.dashboard
 
-import android.graphics.Color.parseColor
+import androidx.core.graphics.toColorInt
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -215,7 +215,7 @@ fun EditCategorySheet(
                 CategoryActionColors.forEach { candidate ->
                     Surface(
                         modifier = Modifier.size(48.dp).semantics { contentDescription = "Color $candidate"; selected = colorHex == candidate }.clip(CircleShape).clickable { colorHex = candidate },
-                        color = Color(parseColor(candidate)),
+                        color = Color(candidate.toColorInt()),
                         tonalElevation = if (candidate == colorHex) 4.dp else 0.dp,
                     ) {}
                 }

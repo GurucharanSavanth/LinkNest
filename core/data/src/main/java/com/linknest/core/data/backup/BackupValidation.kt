@@ -20,6 +20,9 @@ fun validateBackup(snapshot: BackupSnapshot) {
     }
     names(snapshot.categories.map { it.name }); names(snapshot.tags.map { it.name })
     names(snapshot.savedFilters.map { it.name })
+    require(snapshot.categories.all { Regex("#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?").matches(it.colorHex) }) {
+        "Category colors must use #RRGGBB or #AARRGGBB."
+    }
     val categories = snapshot.categories.map { it.id }.toSet()
     val websites = snapshot.websites.map { it.id }.toSet()
     val tags = snapshot.tags.map { it.id }.toSet()

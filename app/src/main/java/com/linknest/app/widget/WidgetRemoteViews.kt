@@ -1,10 +1,10 @@
 package com.linknest.app.widget
 
+import androidx.core.net.toUri
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.view.View
 import android.widget.RemoteViews
 import com.linknest.app.R
@@ -104,7 +104,7 @@ internal object WidgetRemoteViewsFactory {
     ): PendingIntent = PendingIntent.getActivity(
         context,
         requestCode,
-        Intent(Intent.ACTION_VIEW, Uri.parse(deepLink)).apply {
+        Intent(Intent.ACTION_VIEW, deepLink.toUri()).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             setPackage(context.packageName)
         },

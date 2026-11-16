@@ -17,6 +17,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flowOn
 
 class OfflineFirstCategoryRepository @Inject constructor(
     private val database: LinkNestDatabase,
@@ -26,6 +27,7 @@ class OfflineFirstCategoryRepository @Inject constructor(
     private val tagDao: TagDao,
     private val timeProvider: TimeProvider,
     private val searchIndexRepository: SearchIndexRepository,
+    @param:com.linknest.core.common.coroutine.DefaultDispatcher private val defaultDispatcher: kotlinx.coroutines.CoroutineDispatcher,
 ) : CategoryRepository {
     override fun observeArchivedCategories(): Flow<List<SelectableCategory>> =
         categoryDao.observeArchivedCategories().map { it.map(CategoryEntity::asSelectableCategory) }
@@ -47,7 +49,7 @@ class OfflineFirstCategoryRepository @Inject constructor(
                 tagNamesByWebsiteId = tagNamesByWebsiteId,
             ).let { mapped -> mapped.copy(websites = mapped.websites.map { it.copy(duplicateCount = duplicates[it.id] ?: 0) }) }
         }
-    }
+    }.flowOn(defaultDispatcher)
 
     override fun observeSelectableCategories(): Flow<List<SelectableCategory>> =
         categoryDao.observeCategories().map { categories ->

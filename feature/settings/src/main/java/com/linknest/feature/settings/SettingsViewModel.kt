@@ -1,5 +1,6 @@
 package com.linknest.feature.settings
 
+import androidx.core.net.toUri
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
@@ -128,7 +129,7 @@ class SettingsViewModel @Inject constructor(
                 val folderUri = uiState.value.preferences.backupFolderUri
                 if (folderUri != null) {
                     // Auto-save to the user's chosen folder; fall back to the manual picker on failure.
-                    when (val result = backupFileManager.writeToFolder(appContext.contentResolver, Uri.parse(folderUri), pkg)) {
+                    when (val result = backupFileManager.writeToFolder(appContext.contentResolver, folderUri.toUri(), pkg)) {
                         is WriteResult.Ok -> _uiState.update {
                             it.copy(exportStatus = ExportStatus.Saved(result.uriLabel), stagedInfo = info, userMessage = "Backup saved to your chosen folder.")
                         }

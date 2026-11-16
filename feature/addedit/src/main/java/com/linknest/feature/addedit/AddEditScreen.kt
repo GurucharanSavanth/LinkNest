@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,6 +20,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -40,6 +43,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -60,6 +64,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -207,6 +212,7 @@ private fun AddEditScreen(
 
     LinkNestGradientBackground(modifier = modifier) {
         Scaffold(
+            modifier = Modifier.imePadding(),
             containerColor = Color.Transparent,
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
@@ -309,7 +315,7 @@ private fun AddEditScreen(
                         OutlinedTextField(
                             value = uiState.tagDraft,
                             onValueChange = onTagDraftChanged,
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Search or create tags" },
                             leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
                             label = { Text("Search or create tags") },
                             singleLine = true,
@@ -326,6 +332,7 @@ private fun AddEditScreen(
                                     FilterChip(
                                         selected = true,
                                         onClick = { onRemoveTag(tag) },
+                                        modifier = Modifier.semantics { onClick(label = "Remove tag $tag", action = null) },
                                         label = { Text(tag) },
                                     )
                                 }
@@ -706,10 +713,15 @@ private fun CreateCategorySheet(
     var colorHex by remember { mutableStateOf(CategoryColors.first()) }
     var iconValue by remember { mutableStateOf(CategoryIcons.first()) }
 
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .imePadding()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
@@ -727,7 +739,10 @@ private fun CreateCategorySheet(
                     Surface(
                         modifier = Modifier
                             .size(48.dp)
-                            .semantics { contentDescription = "Color $candidate"; selected = candidate == colorHex }
+                            .semantics { contentDescription = when (candidate) {
+                                "#7C4DFF" -> "Purple"; "#00BCD4" -> "Cyan"; "#4CAF50" -> "Green"
+                                "#FF9800" -> "Orange"; "#F06292" -> "Pink"; else -> "Yellow"
+                            }; selected = candidate == colorHex }
                             .clip(CircleShape)
                             .clickable { colorHex = candidate },
                         color = Color(candidate.toColorInt()),

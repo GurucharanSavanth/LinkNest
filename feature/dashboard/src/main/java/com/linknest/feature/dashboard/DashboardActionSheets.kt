@@ -3,6 +3,8 @@ package com.linknest.feature.dashboard
 import androidx.core.graphics.toColorInt
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -25,9 +28,11 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -46,6 +51,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import com.linknest.core.designsystem.component.GlassPanel
@@ -54,8 +60,12 @@ import com.linknest.core.model.DashboardSmartSection
 import com.linknest.core.model.HealthStatus
 import com.linknest.core.model.WebsiteListItem
 
-private val CategoryActionColors = listOf("#7C4DFF", "#00BCD4", "#4CAF50", "#FF9800", "#F06292", "#FFD54F")
+private val CategoryActionColors = listOf(
+    "#7C4DFF" to "Purple", "#00BCD4" to "Cyan", "#4CAF50" to "Green",
+    "#FF9800" to "Orange", "#F06292" to "Pink", "#FFD54F" to "Yellow",
+)
 private val CategoryActionIcons = listOf("🧠", "📁", "🚀", "🎨", "💼", "🌐")
+private val CategoryActionIconNames = listOf("Brain", "Folder", "Rocket", "Art", "Briefcase", "Globe")
 
 
 
@@ -71,9 +81,16 @@ fun WebsiteActionsSheet(
     onPinToggle: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .imePadding()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(website.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
@@ -104,9 +121,16 @@ fun CategoryActionsSheet(
     onArchive: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .imePadding()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(category.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
@@ -128,9 +152,16 @@ fun CategoryReorderSheet(
     onMoveToIndex: (Int) -> Unit,
 ) {
     val selected = categories.firstOrNull { it.id == selectedCategoryId } ?: return
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .imePadding()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text("Place ${selected.name}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
@@ -157,9 +188,16 @@ fun WebsiteReorderSheet(
     onMoveToIndex: (Int) -> Unit,
 ) {
     val selected = category.websites.firstOrNull { it.id == selectedWebsiteId } ?: return
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .imePadding()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text("Place ${selected.title}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
@@ -203,18 +241,25 @@ fun EditCategorySheet(
     var colorHex by remember(category.id) { mutableStateOf(category.colorHex) }
     var iconValue by remember(category.id) { mutableStateOf(category.iconValue ?: CategoryActionIcons.first()) }
 
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .imePadding()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text("Edit Category", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
             OutlinedTextField(value = name, onValueChange = { name = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Category name") }, singleLine = true)
             Text("Color", fontWeight = FontWeight.SemiBold)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                CategoryActionColors.forEach { candidate ->
+                CategoryActionColors.forEach { (candidate, colorName) ->
                     Surface(
-                        modifier = Modifier.size(48.dp).semantics { contentDescription = "Color $candidate"; selected = colorHex == candidate }.clip(CircleShape).clickable { colorHex = candidate },
+                        modifier = Modifier.size(48.dp).semantics { contentDescription = "$colorName color"; selected = colorHex == candidate }.clip(CircleShape).clickable { colorHex = candidate },
                         color = Color(candidate.toColorInt()),
                         tonalElevation = if (candidate == colorHex) 4.dp else 0.dp,
                     ) {}
@@ -222,8 +267,13 @@ fun EditCategorySheet(
             }
             Text("Icon", fontWeight = FontWeight.SemiBold)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                CategoryActionIcons.forEach { candidate ->
-                    AssistChip(onClick = { iconValue = candidate }, label = { Text(candidate) })
+                CategoryActionIcons.forEachIndexed { index, candidate ->
+                    FilterChip(
+                        selected = candidate == iconValue,
+                        onClick = { iconValue = candidate },
+                        modifier = Modifier.semantics { contentDescription = "${CategoryActionIconNames[index]} icon" },
+                        label = { Text(candidate, modifier = Modifier.clearAndSetSemantics {}) },
+                    )
                 }
             }
             Button(onClick = { onSubmit(name.trim(), colorHex, iconValue) }, enabled = name.isNotBlank(), modifier = Modifier.fillMaxWidth()) {

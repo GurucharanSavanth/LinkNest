@@ -2,7 +2,8 @@ package com.linknest.core.designsystem.theme
 
 import androidx.compose.ui.graphics.Color
 
-val LinkNestPrimary = Color(0xFF7C4DFF)
+val LinkNestPrimary = Color(0xFFB69CFF)
+val LinkNestOnPrimary = Color(0xFF1B0B40)
 val LinkNestSecondary = Color(0xFF00C2FF)
 val LinkNestTertiary = Color(0xFF31D0AA)
 val LinkNestBackground = Color(0xFF071120)

@@ -7,7 +7,7 @@ import androidx.compose.ui.graphics.Color
 
 private val LinkNestColorScheme = darkColorScheme(
     primary = LinkNestPrimary,
-    onPrimary = Color.White,
+    onPrimary = LinkNestOnPrimary,
     secondary = LinkNestSecondary,
     onSecondary = Color.Black,
     tertiary = LinkNestTertiary,

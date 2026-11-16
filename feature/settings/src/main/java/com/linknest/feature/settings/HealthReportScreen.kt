@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -69,7 +71,7 @@ fun HealthReportRoute(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun HealthReportScreen(
     uiState: HealthReportUiState,
@@ -113,7 +115,7 @@ private fun HealthReportScreen(
                         LegendRow(Color(0xFFFFC107), "Yellow = Blocked / use VPN / login / caution")
                         LegendRow(MaterialTheme.colorScheme.error, "Red = Not good health / dead / unreachable")
                         androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(12.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(onClick = onRunHealthCheck, enabled = !uiState.isRunning) {
                                 if (uiState.isRunning) {
                                     CircularProgressIndicator(strokeWidth = 2.dp)

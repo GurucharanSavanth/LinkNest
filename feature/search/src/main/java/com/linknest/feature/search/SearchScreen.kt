@@ -4,11 +4,13 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -51,6 +53,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -193,125 +197,135 @@ private fun SearchScreen(
                 }
             },
     ) {
-        Scaffold(
-            containerColor = Color.Transparent,
-            snackbarHost = { SnackbarHost(snackbarHostState) },
-            topBar = {
-                TopAppBar(
-                    title = { Text("Search & Collections") },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Go back")
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = { filtersExpanded = !filtersExpanded }) {
-                            Icon(Icons.Rounded.FilterAlt, contentDescription = "Toggle filters")
-                        }
-                    },
-                )
-            },
-        ) { innerPadding ->
-            BoxWithConstraints(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-            ) {
-                val showFilterBuilder = filtersExpanded || maxWidth >= 920.dp
-                LazyColumn(
+        BoxWithConstraints {
+            val filtersAlwaysVisible = maxWidth >= 920.dp
+            Scaffold(
+                modifier = Modifier.imePadding(),
+                containerColor = Color.Transparent,
+                snackbarHost = { SnackbarHost(snackbarHostState) },
+                topBar = {
+                    TopAppBar(
+                        title = { Text("Search & Collections") },
+                        navigationIcon = {
+                            IconButton(onClick = onBack) {
+                                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Go back")
+                            }
+                        },
+                        actions = {
+                            IconButton(
+                                enabled = !filtersAlwaysVisible,
+                                modifier = Modifier.semantics {
+                                    stateDescription = if (filtersExpanded || filtersAlwaysVisible) "Expanded" else "Collapsed"
+                                },
+                                onClick = { filtersExpanded = !filtersExpanded },
+                            ) {
+                                Icon(Icons.Rounded.FilterAlt, contentDescription = "Toggle filters")
+                            }
+                        },
+                    )
+                },
+            ) { innerPadding ->
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 16.dp),
-                    contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                        .padding(innerPadding),
                 ) {
-                    item {
-                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                            GlassPanel {
-                                OutlinedTextField(
-                                    value = uiState.query,
-                                    onValueChange = onQueryChanged,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .focusRequester(queryFocusRequester),
-                                    leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
-                                    label = { Text("Offline search") },
-                                    placeholder = { Text("Search titles, domains, categories, tags, and notes") },
-                                    singleLine = true,
+                    val showFilterBuilder = filtersExpanded || filtersAlwaysVisible
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp),
+                        contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        item {
+                            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                GlassPanel {
+                                    OutlinedTextField(
+                                        value = uiState.query,
+                                        onValueChange = onQueryChanged,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .focusRequester(queryFocusRequester),
+                                        leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+                                        label = { Text("Offline search") },
+                                        placeholder = { Text("Search titles, domains, categories, tags, and notes") },
+                                        singleLine = true,
+                                    )
+                                }
+
+                                SearchSuggestionsPanel(
+                                    query = uiState.query,
+                                    recentQueries = uiState.recentQueries,
+                                    suggestions = uiState.suggestions,
+                                    onSuggestionSelected = onSuggestionSelected,
+                                    onRecentQuerySelected = onRecentQuerySelected,
+                                    onClearRecentQueries = onClearRecentQueries,
                                 )
-                            }
 
-                            SearchSuggestionsPanel(
-                                query = uiState.query,
-                                recentQueries = uiState.recentQueries,
-                                suggestions = uiState.suggestions,
-                                onSuggestionSelected = onSuggestionSelected,
-                                onRecentQuerySelected = onRecentQuerySelected,
-                                onClearRecentQueries = onClearRecentQueries,
-                            )
-
-                            SmartCollectionRow(
-                                activeCollection = uiState.activeSmartCollection,
-                                onApplySmartCollection = onApplySmartCollection,
-                            )
-
-                            SavedFiltersPanel(
-                                savedFilters = uiState.savedFilters,
-                                activeSavedFilterId = uiState.activeSavedFilterId,
-                                onSelectSavedFilter = onSelectSavedFilter,
-                                onDeleteSavedFilter = onDeleteSavedFilter,
-                                onSaveCurrentFilter = { showSaveDialog = true },
-                            )
-
-                            AnimatedVisibility(visible = showFilterBuilder) {
-                                SearchFilterPanel(
-                                    uiState = uiState,
-                                    onToggleCategory = onToggleCategory,
-                                    onToggleTag = onToggleTag,
-                                    onToggleHealthStatus = onToggleHealthStatus,
-                                    onTogglePriority = onTogglePriority,
-                                    onToggleFollowUpStatus = onToggleFollowUpStatus,
-                                    onPinnedOnlyChanged = onPinnedOnlyChanged,
-                                    onRecentOnlyChanged = onRecentOnlyChanged,
-                                    onDuplicatesOnlyChanged = onDuplicatesOnlyChanged,
-                                    onNeedsAttentionChanged = onNeedsAttentionChanged,
-                                    onClearFilters = onClearFilters,
+                                SmartCollectionRow(
+                                    activeCollection = uiState.activeSmartCollection,
+                                    onApplySmartCollection = onApplySmartCollection,
                                 )
+
+                                SavedFiltersPanel(
+                                    savedFilters = uiState.savedFilters,
+                                    activeSavedFilterId = uiState.activeSavedFilterId,
+                                    onSelectSavedFilter = onSelectSavedFilter,
+                                    onDeleteSavedFilter = onDeleteSavedFilter,
+                                    onSaveCurrentFilter = { showSaveDialog = true },
+                                )
+
+                                AnimatedVisibility(visible = showFilterBuilder) {
+                                    SearchFilterPanel(
+                                        uiState = uiState,
+                                        onToggleCategory = onToggleCategory,
+                                        onToggleTag = onToggleTag,
+                                        onToggleHealthStatus = onToggleHealthStatus,
+                                        onTogglePriority = onTogglePriority,
+                                        onToggleFollowUpStatus = onToggleFollowUpStatus,
+                                        onPinnedOnlyChanged = onPinnedOnlyChanged,
+                                        onRecentOnlyChanged = onRecentOnlyChanged,
+                                        onDuplicatesOnlyChanged = onDuplicatesOnlyChanged,
+                                        onNeedsAttentionChanged = onNeedsAttentionChanged,
+                                        onClearFilters = onClearFilters,
+                                    )
+                                }
                             }
                         }
-                    }
 
-                    if (uiState.isSearching) {
-                        item(key = "search-loading") {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.Center,
-                            ) {
-                                CircularProgressIndicator()
+                        if (uiState.isSearching) {
+                            item(key = "search-loading") {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.Center,
+                                ) {
+                                    CircularProgressIndicator()
+                                }
                             }
                         }
-                    }
 
-                    if (!uiState.isSearching && uiState.results.totalCount == 0) {
-                        item(key = "search-empty") {
-                            GlassPanel {
-                                Text(
-                                    text = if (uiState.query.isBlank() && !uiState.hasActiveFilters) {
-                                        "Use smart collections, recent queries, or saved searches to reopen focused slices of your library."
-                                    } else {
-                                        "No websites matched the current search and filter combination."
-                                    },
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
+                        if (!uiState.isSearching && uiState.results.totalCount == 0) {
+                            item(key = "search-empty") {
+                                GlassPanel {
+                                    Text(
+                                        text = if (uiState.query.isBlank() && !uiState.hasActiveFilters) {
+                                            "Use smart collections, recent queries, or saved searches to reopen focused slices of your library."
+                                        } else {
+                                            "No websites matched the current search and filter combination."
+                                        },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
                             }
                         }
-                    }
 
-                    uiState.results.groups.forEach { group ->
-                        item(key = "group-${group.title}") { Text(group.title, style = MaterialTheme.typography.titleMedium) }
-                        items(group.results, key = { "result-${it.websiteId}" }) { result ->
-                            SearchGroup(group.copy(results = listOf(result)), onOpenWebsite)
+                        uiState.results.groups.forEach { group ->
+                            item(key = "group-${group.title}") { Text(group.title, style = MaterialTheme.typography.titleMedium) }
+                            items(group.results, key = { "result-${it.websiteId}" }) { result ->
+                                SearchGroup(group.copy(results = listOf(result)), onOpenWebsite)
+                            }
                         }
                     }
                 }

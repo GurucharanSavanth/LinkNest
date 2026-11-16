@@ -69,6 +69,8 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -329,7 +331,7 @@ private fun DashboardScreen(
                     uiState.dashboard.categories.forEach { category ->
                         item(key = "category-${category.id}") {
                             CategoryHeader(
-                                category = category.copy(isCollapsed = true),
+                                category = category,
                                 focusedCategoryId = uiState.focusedCategoryId,
                                 onToggleCategory = { onToggleCategory(category.id) },
                                 onCategoryLongPress = { categoryActionTarget = category },
@@ -484,10 +486,10 @@ private fun LayoutToggle(layoutMode: LayoutMode, onLayoutModeChanged: (LayoutMod
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { onLayoutModeChanged(LayoutMode.LIST) }) {
+            IconButton(modifier = Modifier.semantics { selected = layoutMode == LayoutMode.LIST }, onClick = { onLayoutModeChanged(LayoutMode.LIST) }) {
                 Icon(Icons.Rounded.ViewAgenda, contentDescription = "List mode", tint = if (layoutMode == LayoutMode.LIST) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            IconButton(onClick = { onLayoutModeChanged(LayoutMode.GRID) }) {
+            IconButton(modifier = Modifier.semantics { selected = layoutMode == LayoutMode.GRID }, onClick = { onLayoutModeChanged(LayoutMode.GRID) }) {
                 Icon(Icons.Rounded.GridView, contentDescription = "Grid mode", tint = if (layoutMode == LayoutMode.GRID) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
@@ -535,7 +537,14 @@ private fun CategoryHeader(
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(
-                modifier = Modifier.fillMaxWidth().combinedClickable(onClick = onToggleCategory, onLongClick = onCategoryLongPress),
+                modifier = Modifier.fillMaxWidth()
+                    .semantics { stateDescription = if (category.isCollapsed) "Collapsed" else "Expanded" }
+                    .combinedClickable(
+                        onClick = onToggleCategory,
+                        onClickLabel = if (category.isCollapsed) "Expand category" else "Collapse category",
+                        onLongClick = onCategoryLongPress,
+                        onLongClickLabel = "Show category actions",
+                    ),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {

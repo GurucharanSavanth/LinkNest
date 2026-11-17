@@ -6,6 +6,9 @@ import android.content.Context
 import android.content.Intent
 import android.widget.Toast
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.activity.ComponentActivity
+import androidx.core.util.Consumer
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.NavHost
@@ -27,6 +30,13 @@ fun LinkNestNavHost(
 ) {
     val navController = rememberNavController()
     val context = LocalContext.current
+
+    DisposableEffect(navController, context) {
+        val activity = context as? ComponentActivity
+        val listener = Consumer<Intent> { navController.handleDeepLink(it) }
+        activity?.addOnNewIntentListener(listener)
+        onDispose { activity?.removeOnNewIntentListener(listener) }
+    }
 
     NavHost(
         navController = navController,

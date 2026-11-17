@@ -10,7 +10,9 @@
             android:action="android.intent.action.VIEW"
             android:data="linknest://add"
             android:targetClass="com.linknest.app.MainActivity"
-            android:targetPackage="com.linknest.app" />
+            android:targetPackage="com.linknest.app">
+            <extra android:name="com.linknest.app.extra.SHORTCUT_ID" android:value="shortcut_add" />
+        </intent>
     </shortcut>
 
     <shortcut
@@ -23,6 +25,8 @@
             android:action="android.intent.action.VIEW"
             android:data="linknest://search"
             android:targetClass="com.linknest.app.MainActivity"
-            android:targetPackage="com.linknest.app" />
+            android:targetPackage="com.linknest.app">
+            <extra android:name="com.linknest.app.extra.SHORTCUT_ID" android:value="shortcut_search" />
+        </intent>
     </shortcut>
 </shortcuts>

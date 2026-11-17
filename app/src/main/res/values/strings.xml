@@ -15,6 +15,10 @@
     <string name="shortcut_add_long">Capture a new website in LinkNest</string>
     <string name="shortcut_search_short">Search</string>
     <string name="shortcut_search_long">Search your LinkNest library</string>
+    <string name="shortcut_recent_short">Recent</string>
+    <string name="shortcut_recent_long">Open recent LinkNest results</string>
+    <string name="shortcut_health_short">Run Health Check</string>
+    <string name="shortcut_health_long">Run a LinkNest health check</string>
 
 
 

@@ -65,15 +65,16 @@ class UrlNormalizerTest {
     }
 
     @Test
-    fun unsafeScheme_isStoredButMarkedUnsupportedForAutomation() {
-        val result = normalizer.normalize("javascript:alert(1)").getOrThrow()
-
-        assertEquals("javascript:alert(1)", result.normalizedUrl)
-        assertTrue(result.hasUnsupportedScheme)
+    fun unsafeSchemes_areRejectedByProductionNormalizer() {
+        for (url in listOf("javascript:alert(1)", "data:text/plain,hello", "file:///private/test", "content://provider/record", "JaVaScRiPt:alert(1)")) {
+            assertTrue("Unsafe URL accepted: $url", normalizer.normalize(url).isFailure)
+        }
     }
 
     @Test
-    fun strictNormalizer_rejectsUnsafeScheme() {
-        assertTrue(normalizer.normalizeStrict("javascript:alert(1)").isFailure)
+    fun unsafeSchemes_areRejectedByStrictNormalizer() {
+        for (url in listOf("javascript:alert(1)", "data:text/plain,hello", "file:///private/test", "content://provider/record", "JaVaScRiPt:alert(1)")) {
+            assertTrue("Unsafe URL accepted: $url", normalizer.normalizeStrict(url).isFailure)
+        }
     }
 }

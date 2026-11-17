@@ -27,9 +27,7 @@ class UrlNormalizer @Inject constructor() {
         val parsed = URI(withScheme)
         val originalScheme = parsed.scheme?.lowercase() ?: error("Missing URL scheme.")
 
-        if (strict) {
-            require(originalScheme !in BLOCKED_SCHEMES) { "This URL scheme is unsafe." }
-        }
+        require(originalScheme !in BLOCKED_SCHEMES) { "This URL scheme is unsafe." }
 
         val normalizedResult = if (originalScheme == "http" || originalScheme == "https") {
             normalizeWebUrl(rawUrl, parsed, originalScheme, strict)

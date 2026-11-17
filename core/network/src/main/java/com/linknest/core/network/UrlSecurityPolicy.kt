@@ -47,13 +47,10 @@ object UrlSecurityPolicy {
     }.getOrDefault(false)
 
     /**
-     * Trust-boundary guard for ANY outbound fetch (metadata, icons, health probes).
-     * Throws if the target is not an http/https URL whose host — by literal form AND by
-     * resolved IP — is a public destination. This is the only SSRF gate that must run
-     * BEFORE a network call; the lenient normalizer deliberately stores private hosts but
-     * must never fetch them. Residual: Jsoup/HttpURLConnection re-resolve on connect, so
-     * DNS-rebinding TOCTOU is not fully closed here — the literal + first-resolution checks
-     * block the common private-host and private-A-record cases.
+     * Preflight check for outbound metadata, icon, and health requests. It rejects non-web
+     * schemes and private literal/resolved addresses before the request starts. This check
+     * alone cannot prevent DNS rebinding: PublicWebClient also validates the exact addresses
+     * returned by its OkHttp DNS implementation for each connection and rechecks redirects.
      */
     fun requirePublicWebTarget(url: String) {
         val parsed = URI(url)

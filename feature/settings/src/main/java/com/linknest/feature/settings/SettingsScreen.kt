@@ -41,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -73,20 +74,26 @@ fun SettingsRoute(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
+    var folderPickerOpen by rememberSaveable { mutableStateOf(false) }
+    var importPickerOpen by rememberSaveable { mutableStateOf(false) }
 
     (uiState.importStatus as? ImportStatus.Preview)?.let { preview ->
+        val unavailableImages = preview.snapshot.omittedCustomImages + preview.snapshot.websites.count {
+            it.customIconUri != null && it.customIconAssetId == null
+        }
         AlertDialog(
             onDismissRequest = viewModel::resetImportStatus,
-            title = { Text("Replace library?") },
-            text = { Text("Replace ${preview.currentCount} websites with ${preview.snapshot.websites.size} websites in ${preview.snapshot.categories.size} categories. Your previous library will be staged for recovery.") },
-            confirmButton = { TextButton(onClick = viewModel::confirmImport) { Text("Replace library") } },
-            dismissButton = { TextButton(onClick = viewModel::resetImportStatus) { Text("Cancel") } },
+            title = { Text(stringResource(R.string.settings_replace_title)) },
+            text = { Text(stringResource(R.string.settings_replace_preview, preview.currentCount, preview.snapshot.websites.size, preview.snapshot.categories.size, preview.snapshot.assets.size, unavailableImages)) },
+            confirmButton = { TextButton(onClick = viewModel::confirmImport) { Text(stringResource(R.string.settings_replace_library)) } },
+            dismissButton = { TextButton(onClick = viewModel::resetImportStatus) { Text(stringResource(R.string.settings_cancel)) } },
         )
     }
 
     val backupFolderLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
     ) { uri ->
+        folderPickerOpen = false
         if (uri != null) {
             runCatching {
                 context.contentResolver.takePersistableUriPermission(
@@ -111,6 +118,7 @@ fun SettingsRoute(
     val importFileLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
     ) { uri ->
+        importPickerOpen = false
         if (uri != null) {
             viewModel.onImportFromUri(context.contentResolver, uri)
         }
@@ -129,12 +137,10 @@ fun SettingsRoute(
     var launchedSaveFor by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(uiState.exportStatus) {
         val status = uiState.exportStatus
-        if (status is ExportStatus.ReadyToSave) {
-            if (launchedSaveFor != status.pkg.fileName) {
-                launchedSaveFor = status.pkg.fileName
-                saveLauncher.launch(status.pkg.fileName)
-            }
-        } else {
+        if (status is ExportStatus.ReadyToSave && launchedSaveFor != status.pkg.fileName) {
+            launchedSaveFor = status.pkg.fileName
+            saveLauncher.launch(status.pkg.fileName)
+        } else if (status !is ExportStatus.ReadyToSave) {
             launchedSaveFor = null
         }
     }
@@ -149,11 +155,23 @@ fun SettingsRoute(
         onOpenHealthReport = onOpenHealthReport,
         onTileDensityModeSelected = viewModel::onTileDensityModeSelected,
         onBackgroundHealthChecksChanged = viewModel::onBackgroundHealthChecksChanged,
-        onSetBackupFolder = { backupFolderLauncher.launch(null) },
+        onSetBackupFolder = {
+            if (!folderPickerOpen && !uiState.isBackupBusy) {
+                folderPickerOpen = true
+                backupFolderLauncher.launch(null)
+            }
+        },
         onClearBackupFolder = { viewModel.onBackupFolderSelected(null) },
         onExportBackup = viewModel::onExportBackup,
         onImportFromStaged = viewModel::onImportFromStaged,
-        onImportFromFile = { importFileLauncher.launch(arrayOf("*/*")) },
+        onImportFromRecovery = viewModel::onImportFromRecovery,
+        onReconcileRecovery = viewModel::onReconcileRecovery,
+        onImportFromFile = {
+            if (!importPickerOpen && !uiState.isBackupBusy) {
+                importPickerOpen = true
+                importFileLauncher.launch(arrayOf("*/*"))
+            }
+        },
         onImportFromText = viewModel::onImportFromText,
         onRunHealthCheck = viewModel::onRunHealthCheck,
     )
@@ -175,6 +193,8 @@ private fun SettingsScreen(
     onClearBackupFolder: () -> Unit,
     onExportBackup: () -> Unit,
     onImportFromStaged: () -> Unit,
+    onImportFromRecovery: () -> Unit,
+    onReconcileRecovery: () -> Unit,
     onImportFromFile: () -> Unit,
     onImportFromText: (String) -> Unit,
     onRunHealthCheck: () -> Unit,
@@ -197,10 +217,10 @@ private fun SettingsScreen(
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 TopAppBar(
-                    title = { Text("Settings") },
+                    title = { Text(stringResource(R.string.settings_settings)) },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Go back")
+                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.settings_go_back))
                         }
                     },
                 )
@@ -216,10 +236,10 @@ private fun SettingsScreen(
                 if (uiState.archivedCategories.isNotEmpty()) {
                     item(key = "archived-categories") {
                         GlassPanel {
-                            Text("Archived categories", style = MaterialTheme.typography.titleMedium)
+                            Text(stringResource(R.string.settings_archived_categories), style = MaterialTheme.typography.titleMedium)
                             uiState.archivedCategories.forEach { category ->
                                 TextButton(onClick = { onRestoreCategory(category.id) }) {
-                                    Text("Restore ${category.name}")
+                                    Text(stringResource(R.string.settings_restore_category, category.name))
                                 }
                             }
                         }
@@ -227,31 +247,35 @@ private fun SettingsScreen(
                 }
                 item {
                     GlassPanel {
-                        Text("Tools", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.settings_tools), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(modifier = Modifier.height(12.dp))
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = onOpenIntegrityCenter) { Text("Integrity Center") }
-                            OutlinedButton(onClick = onOpenHealthReport) { Text("Health Report") }
+                            OutlinedButton(onClick = onOpenIntegrityCenter) { Text(stringResource(R.string.settings_integrity_center)) }
+                            OutlinedButton(onClick = onOpenHealthReport) { Text(stringResource(R.string.settings_health_report)) }
                         }
                     }
                 }
 
                 item {
                     GlassPanel {
-                        Text("Tile Density", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.settings_tile_density), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(modifier = Modifier.height(12.dp))
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             TileDensityMode.entries.forEach { mode ->
                                 FilterChip(
                                     selected = uiState.preferences.tileDensityMode == mode,
                                     onClick = { onTileDensityModeSelected(mode) },
-                                    label = { Text(mode.name.lowercase().replaceFirstChar(Char::uppercaseChar)) },
+                                    label = { Text(when (mode) {
+                                        TileDensityMode.ADAPTIVE -> stringResource(R.string.settings_adaptive)
+                                        TileDensityMode.COMPACT -> stringResource(R.string.settings_compact)
+                                        TileDensityMode.COMFORTABLE -> stringResource(R.string.settings_comfortable)
+                                    }) },
                                 )
                             }
                         }
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            "Controls how many tiles fit per row in grid mode.",
+                            stringResource(R.string.settings_controls_how_many_tiles_fit_per_row_in_grid_mode),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -261,8 +285,8 @@ private fun SettingsScreen(
                 item {
                     GlassPanel {
                         SettingToggle(
-                            title = "Background health monitoring",
-                            description = "Periodic health checks in background with network constraints.",
+                            title = stringResource(R.string.settings_background_health_monitoring),
+                            description = stringResource(R.string.settings_periodic_health_checks_in_background_with_network_constraints),
                             checked = uiState.preferences.backgroundHealthChecksEnabled,
                             icon = { Icon(Icons.Rounded.HealthAndSafety, contentDescription = null) },
                             onCheckedChange = onBackgroundHealthChecksChanged,
@@ -277,6 +301,8 @@ private fun SettingsScreen(
                         onClearBackupFolder = onClearBackupFolder,
                         onExportBackup = onExportBackup,
                         onImportFromStaged = onImportFromStaged,
+                        onImportFromRecovery = onImportFromRecovery,
+                        onReconcileRecovery = onReconcileRecovery,
                         onImportFromFile = onImportFromFile,
                         onPasteImport = { showPasteDialog = true },
                     )
@@ -284,15 +310,15 @@ private fun SettingsScreen(
 
                 item {
                     GlassPanel {
-                        Text("Health Monitor", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.settings_health_monitor), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(modifier = Modifier.height(12.dp))
                         OutlinedButton(onClick = onRunHealthCheck, enabled = !uiState.isRunningHealthCheck) {
                             if (uiState.isRunningHealthCheck) {
                                 CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                                 Spacer(modifier = Modifier.padding(start = 8.dp))
-                                Text("Checking...")
+                                Text(stringResource(R.string.settings_checking))
                             } else {
-                                Text("Run health check")
+                                Text(stringResource(R.string.settings_run_health_check))
                             }
                         }
                         uiState.healthSummary?.let { summary ->
@@ -301,7 +327,7 @@ private fun SettingsScreen(
                         }
                         if (uiState.latestHealthReport.isNotEmpty()) {
                             Spacer(modifier = Modifier.height(12.dp))
-                            Text("Latest report", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.settings_latest_report), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                             Spacer(modifier = Modifier.height(8.dp))
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 uiState.latestHealthReport.take(6).forEach { item ->
@@ -339,6 +365,8 @@ private fun BackupRestorePanel(
     onClearBackupFolder: () -> Unit,
     onExportBackup: () -> Unit,
     onImportFromStaged: () -> Unit,
+    onImportFromRecovery: () -> Unit,
+    onReconcileRecovery: () -> Unit,
     onImportFromFile: () -> Unit,
     onPasteImport: () -> Unit,
 ) {
@@ -348,16 +376,16 @@ private fun BackupRestorePanel(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Backup & Restore", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.settings_backup_restore), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             if (uiState.exportStatus is ExportStatus.Saved) {
-                Icon(Icons.Rounded.CheckCircle, contentDescription = "Saved", tint = Color(0xFF4CAF50), modifier = Modifier.size(20.dp))
+                Icon(Icons.Rounded.CheckCircle, contentDescription = stringResource(R.string.settings_saved), tint = Color(0xFF4CAF50), modifier = Modifier.size(20.dp))
             }
         }
 
         uiState.stagedInfo?.let { info ->
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Last export: ${info.dateLabel}  •  ${info.typeLabel}  •  ${info.sizeLabel}",
+                text = stringResource(R.string.settings_last_export_summary, info.dateLabel, info.typeLabel, info.sizeLabel),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -366,12 +394,12 @@ private fun BackupRestorePanel(
         Spacer(modifier = Modifier.height(16.dp))
 
         // Export section
-        Text("Export", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(R.string.settings_export), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(modifier = Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Button(
                 onClick = onExportBackup,
-                enabled = !uiState.isExporting && !uiState.isImporting,
+                enabled = !uiState.isBackupBusy,
                 modifier = Modifier.weight(1f),
             ) {
                 if (uiState.isExporting) {
@@ -379,7 +407,7 @@ private fun BackupRestorePanel(
                 } else {
                     Icon(Icons.Rounded.Upload, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.padding(start = 6.dp))
-                    Text("Export Backup")
+                    Text(stringResource(R.string.settings_export_backup))
                 }
             }
         }
@@ -395,7 +423,7 @@ private fun BackupRestorePanel(
             Column(modifier = Modifier.weight(1f)) {
                 val folderUri = uiState.preferences.backupFolderUri
                 Text(
-                    text = if (folderUri != null) "Auto-save folder set" else "No auto-save folder",
+                    text = if (folderUri != null) stringResource(R.string.settings_auto_save_folder_set) else stringResource(R.string.settings_no_auto_save_folder),
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = if (folderUri != null) FontWeight.SemiBold else FontWeight.Normal,
                 )
@@ -404,31 +432,31 @@ private fun BackupRestorePanel(
                 }
             }
             TextButton(onClick = onSetBackupFolder) {
-                Text(if (uiState.preferences.backupFolderUri != null) "Change" else "Set")
+                Text(if (uiState.preferences.backupFolderUri != null) stringResource(R.string.settings_change) else stringResource(R.string.settings_set))
             }
             if (uiState.preferences.backupFolderUri != null) {
-                TextButton(onClick = onClearBackupFolder) { Text("Clear") }
+                TextButton(onClick = onClearBackupFolder) { Text(stringResource(R.string.settings_clear)) }
             }
         }
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 14.dp))
 
         // Import section
-        Text("Import", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(R.string.settings_import), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(modifier = Modifier.height(8.dp))
 
         when (val status = uiState.importStatus) {
             is ImportStatus.Running -> {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    Text("Restoring data…", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.settings_restoring_data), style = MaterialTheme.typography.bodyMedium)
                 }
             }
             is ImportStatus.Success -> {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = Color(0xFF4CAF50), modifier = Modifier.size(20.dp))
                     Text(
-                        "Restored ${status.websiteCount} websites in ${status.categoryCount} categories.",
+                        stringResource(R.string.settings_restored_counts, status.websiteCount, status.categoryCount),
                         style = MaterialTheme.typography.bodyMedium,
                         color = Color(0xFF4CAF50),
                     )
@@ -436,37 +464,53 @@ private fun BackupRestorePanel(
                 Spacer(modifier = Modifier.height(8.dp))
             }
             is ImportStatus.Failed -> {
-                Text("Import failed: ${status.reason}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                Text(stringResource(R.string.settings_import_failed, status.reason), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                 Spacer(modifier = Modifier.height(8.dp))
             }
             else -> Unit
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                onClick = onReconcileRecovery,
+                enabled = !uiState.isBackupBusy,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(if (uiState.isReconcilingRecovery) R.string.settings_reconciling_recovery else R.string.settings_reconcile_recovery))
+            }
+            uiState.recoveryInfo?.let { info ->
+                Button(
+                    onClick = onImportFromRecovery,
+                    enabled = !uiState.isBackupBusy,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.settings_preview_recovery, info.dateLabel))
+                }
+            }
             if (uiState.hasStagedBackup) {
                 Button(
                     onClick = onImportFromStaged,
-                    enabled = !uiState.isImporting && !uiState.isExporting,
+                    enabled = !uiState.isBackupBusy,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Icon(Icons.Rounded.Download, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.padding(start = 6.dp))
-                    Text("Import last export${uiState.stagedInfo?.let { " (${it.dateLabel})" }.orEmpty()}")
+                    Text(stringResource(R.string.settings_import_last_export, uiState.stagedInfo?.let { stringResource(R.string.settings_parenthesized_date, it.dateLabel) }.orEmpty()))
                 }
             }
             OutlinedButton(
                 onClick = onImportFromFile,
-                enabled = !uiState.isImporting && !uiState.isExporting,
+                enabled = !uiState.isBackupBusy,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("Import from file")
+                Text(stringResource(R.string.settings_import_from_file))
             }
             OutlinedButton(
                 onClick = onPasteImport,
-                enabled = !uiState.isImporting && !uiState.isExporting,
+                enabled = !uiState.isBackupBusy,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("Paste backup text")
+                Text(stringResource(R.string.settings_paste_backup_text))
             }
         }
 
@@ -481,24 +525,24 @@ private fun PasteImportDialog(
     var text by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Paste backup") },
+        title = { Text(stringResource(R.string.settings_paste_backup)) },
         text = {
             OutlinedTextField(
                 value = text,
                 onValueChange = { text = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Backup payload (.json)") },
+                label = { Text(stringResource(R.string.settings_backup_payload_json)) },
                 minLines = 5,
                 maxLines = 12,
             )
         },
         confirmButton = {
             TextButton(onClick = { if (text.isNotBlank()) onImport(text) }, enabled = text.isNotBlank()) {
-                Text("Import")
+                Text(stringResource(R.string.settings_import))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
         },
     )
 }

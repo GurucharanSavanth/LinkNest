@@ -53,6 +53,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -156,43 +157,78 @@ private fun DashboardScreen(
     onDeleteCategory: (Long) -> Unit,
 ) {
     val queryFocusRequester = remember { FocusRequester() }
-    var websiteActionTarget by remember { mutableStateOf<WebsiteListItem?>(null) }
-    var categoryActionTarget by remember { mutableStateOf<DashboardCategory?>(null) }
-    var websiteDeleteTarget by remember { mutableStateOf<WebsiteListItem?>(null) }
-    var categoryDeleteTarget by remember { mutableStateOf<DashboardCategory?>(null) }
-    var categoryEditTarget by remember { mutableStateOf<DashboardCategory?>(null) }
-    var categoryReorderTarget by remember { mutableStateOf<DashboardCategory?>(null) }
-    var websiteReorderTarget by remember { mutableStateOf<WebsiteListItem?>(null) }
+    var websiteActionId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var categoryActionId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var websiteDeleteId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var categoryDeleteId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var categoryEditId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var categoryReorderId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var websiteReorderId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val websiteActionTarget = websiteActionId?.let { id ->
+        uiState.dashboard.categories.firstNotNullOfOrNull { category -> category.websites.firstOrNull { it.id == id } }
+    }
+    val categoryActionTarget = categoryActionId?.let { id -> uiState.dashboard.categories.firstOrNull { it.id == id } }
+    val websiteDeleteTarget = websiteDeleteId?.let { id ->
+        uiState.dashboard.categories.firstNotNullOfOrNull { category -> category.websites.firstOrNull { it.id == id } }
+    }
+    val categoryDeleteTarget = categoryDeleteId?.let { id -> uiState.dashboard.categories.firstOrNull { it.id == id } }
+    val categoryEditTarget = categoryEditId?.let { id -> uiState.dashboard.categories.firstOrNull { it.id == id } }
+    val categoryReorderTarget = categoryReorderId?.let { id -> uiState.dashboard.categories.firstOrNull { it.id == id } }
+    val websiteReorderTarget = websiteReorderId?.let { id ->
+        uiState.dashboard.categories.firstNotNullOfOrNull { category -> category.websites.firstOrNull { it.id == id } }
+    }
+
+    LaunchedEffect(uiState.isLoading, uiState.dashboard.categories) {
+        if (!uiState.isLoading) {
+            val missing = (websiteActionId != null && websiteActionTarget == null) ||
+                (categoryActionId != null && categoryActionTarget == null) ||
+                (websiteDeleteId != null && websiteDeleteTarget == null) ||
+                (categoryDeleteId != null && categoryDeleteTarget == null) ||
+                (categoryEditId != null && categoryEditTarget == null) ||
+                (categoryReorderId != null && categoryReorderTarget == null) ||
+                (websiteReorderId != null && websiteReorderTarget == null)
+            if (missing) {
+                if (websiteActionTarget == null) websiteActionId = null
+                if (categoryActionTarget == null) categoryActionId = null
+                if (websiteDeleteTarget == null) websiteDeleteId = null
+                if (categoryDeleteTarget == null) categoryDeleteId = null
+                if (categoryEditTarget == null) categoryEditId = null
+                if (categoryReorderTarget == null) categoryReorderId = null
+                if (websiteReorderTarget == null) websiteReorderId = null
+                snackbarHostState.showSnackbar("The selected item is no longer available in this view.")
+            }
+        }
+    }
 
     websiteActionTarget?.let { website ->
         WebsiteActionsSheet(
             website = website,
             categories = uiState.dashboard.categories,
-            onDismiss = { websiteActionTarget = null },
-            onEdit = { websiteActionTarget = null; onEditWebsite(website.id) },
+            onDismiss = { websiteActionId = null },
+            onEdit = { websiteActionId = null; onEditWebsite(website.id) },
             onReorderInCategory = {
-                websiteActionTarget = null
-                websiteReorderTarget = website
+                websiteActionId = null
+                websiteReorderId = website.id
             },
             onRelocate = { targetCategoryId ->
-                websiteActionTarget = null
+                websiteActionId = null
                 if (targetCategoryId != website.categoryId) onMoveWebsiteToCategory(website.id, targetCategoryId)
             },
-            onPinToggle = { websiteActionTarget = null; onSetPinned(website.id, !website.isPinned) },
-            onDelete = { websiteActionTarget = null; websiteDeleteTarget = website },
+            onPinToggle = { websiteActionId = null; onSetPinned(website.id, !website.isPinned) },
+            onDelete = { websiteActionId = null; websiteDeleteId = website.id },
         )
     }
     categoryActionTarget?.let { category ->
         CategoryActionsSheet(
             category = category,
-            onDismiss = { categoryActionTarget = null },
-            onEdit = { categoryActionTarget = null; categoryEditTarget = category },
+            onDismiss = { categoryActionId = null },
+            onEdit = { categoryActionId = null; categoryEditId = category.id },
             onReorder = {
-                categoryActionTarget = null
-                categoryReorderTarget = category
+                categoryActionId = null
+                categoryReorderId = category.id
             },
-            onArchive = { categoryActionTarget = null; onArchiveCategory(category.id) },
-            onDelete = { categoryActionTarget = null; categoryDeleteTarget = category },
+            onArchive = { categoryActionId = null; onArchiveCategory(category.id) },
+            onDelete = { categoryActionId = null; categoryDeleteId = category.id },
         )
     }
     categoryReorderTarget?.let { category ->
@@ -201,10 +237,10 @@ private fun DashboardScreen(
             CategoryReorderSheet(
                 categories = uiState.dashboard.categories,
                 selectedCategoryId = category.id,
-                onDismiss = { categoryReorderTarget = null },
+                onDismiss = { categoryReorderId = null },
                 onMoveToIndex = { index ->
                     onMoveCategory(category.id, index - currentIndex)
-                    categoryReorderTarget = null
+                    categoryReorderId = null
                 },
             )
         }
@@ -216,10 +252,10 @@ private fun DashboardScreen(
             WebsiteReorderSheet(
                 category = category,
                 selectedWebsiteId = website.id,
-                onDismiss = { websiteReorderTarget = null },
+                onDismiss = { websiteReorderId = null },
                 onMoveToIndex = { index ->
                     onMoveWebsite(website.categoryId, website.id, index - currentIndex)
-                    websiteReorderTarget = null
+                    websiteReorderId = null
                 },
             )
         }
@@ -227,10 +263,10 @@ private fun DashboardScreen(
     categoryEditTarget?.let { category ->
         EditCategorySheet(
             category = category,
-            onDismiss = { categoryEditTarget = null },
+            onDismiss = { categoryEditId = null },
             onSubmit = { name, colorHex, iconValue ->
                 onUpdateCategory(category.id, name, colorHex, iconValue)
-                categoryEditTarget = null
+                categoryEditId = null
             },
         )
     }
@@ -238,16 +274,16 @@ private fun DashboardScreen(
         ConfirmDeleteDialog(
             title = "Delete website",
             message = "Remove ${website.title} from LinkNest?",
-            onDismiss = { websiteDeleteTarget = null },
-            onConfirm = { onDeleteWebsite(website.id); websiteDeleteTarget = null },
+            onDismiss = { websiteDeleteId = null },
+            onConfirm = { onDeleteWebsite(website.id); websiteDeleteId = null },
         )
     }
     categoryDeleteTarget?.let { category ->
         ConfirmDeleteDialog(
             title = "Delete category",
             message = "Delete ${category.name} and its saved websites?",
-            onDismiss = { categoryDeleteTarget = null },
-            onConfirm = { onDeleteCategory(category.id); categoryDeleteTarget = null },
+            onDismiss = { categoryDeleteId = null },
+            onConfirm = { onDeleteCategory(category.id); categoryDeleteId = null },
         )
     }
 
@@ -334,7 +370,7 @@ private fun DashboardScreen(
                                 category = category,
                                 focusedCategoryId = uiState.focusedCategoryId,
                                 onToggleCategory = { onToggleCategory(category.id) },
-                                onCategoryLongPress = { categoryActionTarget = category },
+                                onCategoryLongPress = { categoryActionId = category.id },
                             )
                         }
                         if (!category.isCollapsed) {
@@ -349,7 +385,7 @@ private fun DashboardScreen(
                                                 layoutMode = uiState.dashboard.layoutMode,
                                                 isFocused = uiState.focusedWebsiteId == website.id,
                                                 onOpenWebsite = { onOpenWebsite(website) },
-                                                onLongPress = { websiteActionTarget = website },
+                                                onLongPress = { websiteActionId = website.id },
                                             )
                                         }
                                     }

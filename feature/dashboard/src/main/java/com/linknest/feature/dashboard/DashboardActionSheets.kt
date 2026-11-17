@@ -38,10 +38,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -94,10 +96,10 @@ fun WebsiteActionsSheet(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(website.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-            SheetActionButton("Edit website", Icons.Rounded.Edit, onEdit)
-            SheetActionButton("Reorder inside category", Icons.Rounded.DragIndicator, onReorderInCategory)
-            SheetActionButton(if (website.isPinned) "Unpin website" else "Pin website", Icons.Rounded.PushPin, onPinToggle)
-            Text("Move to another category", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            SheetActionButton(stringResource(R.string.dashboard_edit_website), Icons.Rounded.Edit, onEdit)
+            SheetActionButton(stringResource(R.string.dashboard_reorder_inside_category), Icons.Rounded.DragIndicator, onReorderInCategory)
+            SheetActionButton(if (website.isPinned) stringResource(R.string.dashboard_unpin_website) else stringResource(R.string.dashboard_pin_website), Icons.Rounded.PushPin, onPinToggle)
+            Text(stringResource(R.string.dashboard_move_to_another_category), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             categories.filterNot { it.id == website.categoryId }.forEach { category ->
                 AssistChip(
                     onClick = { onRelocate(category.id) },
@@ -105,7 +107,7 @@ fun WebsiteActionsSheet(
                     leadingIcon = { Icon(Icons.Rounded.Workspaces, contentDescription = null) },
                 )
             }
-            SheetActionButton("Delete website", Icons.Rounded.Delete, onDelete, destructive = true)
+            SheetActionButton(stringResource(R.string.dashboard_delete_website), Icons.Rounded.Delete, onDelete, destructive = true)
             Spacer(modifier = Modifier.height(12.dp))
         }
     }
@@ -134,10 +136,10 @@ fun CategoryActionsSheet(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(category.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-            SheetActionButton("Rename or recolor", Icons.Rounded.Edit, onEdit)
-            SheetActionButton("Reorder category", Icons.Rounded.DragIndicator, onReorder)
-            SheetActionButton("Archive category", Icons.Rounded.Archive, onArchive)
-            SheetActionButton("Delete category", Icons.Rounded.Delete, onDelete, destructive = true)
+            SheetActionButton(stringResource(R.string.dashboard_rename_or_recolor), Icons.Rounded.Edit, onEdit)
+            SheetActionButton(stringResource(R.string.dashboard_reorder_category), Icons.Rounded.DragIndicator, onReorder)
+            SheetActionButton(stringResource(R.string.dashboard_archive_category), Icons.Rounded.Archive, onArchive)
+            SheetActionButton(stringResource(R.string.dashboard_delete_category), Icons.Rounded.Delete, onDelete, destructive = true)
             Spacer(modifier = Modifier.height(12.dp))
         }
     }
@@ -164,14 +166,14 @@ fun CategoryReorderSheet(
                 .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text("Place ${selected.name}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.dashboard_place_name, selected.name), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
             categories.forEachIndexed { index, category ->
                 TextButton(
                     onClick = { onMoveToIndex(index) },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = category.id != selectedCategoryId,
                 ) {
-                    Text("Position ${index + 1}: ${category.name}")
+                    Text(stringResource(R.string.dashboard_position_name, index + 1, category.name))
                 }
             }
             Spacer(modifier = Modifier.height(12.dp))
@@ -200,7 +202,7 @@ fun WebsiteReorderSheet(
                 .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text("Place ${selected.title}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.dashboard_place_name, selected.title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
             Text(category.name, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             category.websites.forEachIndexed { index, website ->
                 TextButton(
@@ -208,7 +210,7 @@ fun WebsiteReorderSheet(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = website.id != selectedWebsiteId,
                 ) {
-                    Text("Position ${index + 1}: ${website.title}")
+                    Text(stringResource(R.string.dashboard_position_name, index + 1, website.title))
                 }
             }
             Spacer(modifier = Modifier.height(12.dp))
@@ -237,9 +239,9 @@ fun EditCategorySheet(
     onDismiss: () -> Unit,
     onSubmit: (String, String, String?) -> Unit,
 ) {
-    var name by remember(category.id) { mutableStateOf(category.name) }
-    var colorHex by remember(category.id) { mutableStateOf(category.colorHex) }
-    var iconValue by remember(category.id) { mutableStateOf(category.iconValue ?: CategoryActionIcons.first()) }
+    var name by rememberSaveable(category.id) { mutableStateOf(category.name) }
+    var colorHex by rememberSaveable(category.id) { mutableStateOf(category.colorHex) }
+    var iconValue by rememberSaveable(category.id) { mutableStateOf(category.iconValue ?: CategoryActionIcons.first()) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -253,9 +255,9 @@ fun EditCategorySheet(
                 .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("Edit Category", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-            OutlinedTextField(value = name, onValueChange = { name = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Category name") }, singleLine = true)
-            Text("Color", fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.dashboard_edit_category), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            OutlinedTextField(value = name, onValueChange = { name = it }, modifier = Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.dashboard_category_name)) }, singleLine = true)
+            Text(stringResource(R.string.dashboard_color), fontWeight = FontWeight.SemiBold)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 CategoryActionColors.forEach { (candidate, colorName) ->
                     Surface(
@@ -265,7 +267,7 @@ fun EditCategorySheet(
                     ) {}
                 }
             }
-            Text("Icon", fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.dashboard_icon), fontWeight = FontWeight.SemiBold)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 CategoryActionIcons.forEachIndexed { index, candidate ->
                     FilterChip(
@@ -277,7 +279,7 @@ fun EditCategorySheet(
                 }
             }
             Button(onClick = { onSubmit(name.trim(), colorHex, iconValue) }, enabled = name.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
-                Text("Save category")
+                Text(stringResource(R.string.dashboard_save_category))
             }
             Spacer(modifier = Modifier.height(12.dp))
         }
@@ -295,8 +297,8 @@ fun ConfirmDeleteDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = { Text(message) },
-        confirmButton = { Button(onClick = onConfirm) { Text("Delete") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        confirmButton = { Button(onClick = onConfirm) { Text(stringResource(R.string.dashboard_delete)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.dashboard_cancel)) } },
     )
 }
 

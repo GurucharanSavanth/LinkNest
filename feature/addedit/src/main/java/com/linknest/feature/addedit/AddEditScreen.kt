@@ -57,6 +57,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -105,7 +106,7 @@ fun AddEditRoute(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    var showDiscardChangesDialog by remember { mutableStateOf(false) }
+    var showDiscardChangesDialog by rememberSaveable { mutableStateOf(false) }
 
     val requestBackNavigation = {
         if (uiState.hasUnsavedChanges && !uiState.isSubmitting) {
@@ -198,7 +199,7 @@ private fun AddEditScreen(
     onSubmit: () -> Unit,
     onResolveDuplicate: (DuplicateDecision) -> Unit,
 ) {
-    var categorySheetOpen by remember { mutableStateOf(false) }
+    var categorySheetOpen by rememberSaveable { mutableStateOf(false) }
 
     if (categorySheetOpen) {
         CreateCategorySheet(
@@ -709,9 +710,9 @@ private fun CreateCategorySheet(
     onDismiss: () -> Unit,
     onCreateCategory: (CategoryDraft) -> Unit,
 ) {
-    var name by remember { mutableStateOf("") }
-    var colorHex by remember { mutableStateOf(CategoryColors.first()) }
-    var iconValue by remember { mutableStateOf(CategoryIcons.first()) }
+    var name by rememberSaveable { mutableStateOf("") }
+    var colorHex by rememberSaveable { mutableStateOf(CategoryColors.first()) }
+    var iconValue by rememberSaveable { mutableStateOf(CategoryIcons.first()) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,

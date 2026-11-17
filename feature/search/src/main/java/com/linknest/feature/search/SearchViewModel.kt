@@ -109,6 +109,7 @@ class SearchViewModel @Inject constructor(
     private val warmSearchIndexUseCase: WarmSearchIndexUseCase,
 ) : ViewModel() {
     private val restoredDraft = savedStateHandle.contains("searchDraft")
+    private var initialFilterPending = !restoredDraft
     private val initialSavedFilterId = savedStateHandle
         .get<Long>(SEARCH_FILTER_ID_ARG)
         ?.takeIf { it > 0L }
@@ -132,6 +133,8 @@ class SearchViewModel @Inject constructor(
         savedStateHandle.get<android.os.Bundle>("searchDraft")?.let { draft ->
             _uiState.update { it.copy(
                 query = draft.getString("query").orEmpty(),
+                activeSavedFilterId = draft.getLong("activeFilter").takeIf { id -> id > 0L },
+                activeSmartCollection = SearchSmartCollection.fromRouteValue(draft.getString("activeCollection")),
                 selectedCategoryIds = draft.getLongArray("categories")?.toSet().orEmpty(),
                 selectedTagNames = draft.getStringArrayList("tags")?.toSet().orEmpty(),
                 selectedHealthStatuses = draft.getStringArrayList("health").orEmpty().mapNotNull { value -> HealthStatus.entries.find { it.name == value } }.toSet(),
@@ -185,10 +188,21 @@ class SearchViewModel @Inject constructor(
         viewModelScope.launch {
             loadSavedFiltersUseCase().collect { filters ->
                 _uiState.update { current -> current.copy(savedFilters = filters) }
-                if (!restoredDraft && _uiState.value.activeSavedFilterId == null) {
+                if (initialFilterPending) {
+                    initialFilterPending = false
                     initialSavedFilterId?.let { filterId ->
-                        filters.firstOrNull { it.id == filterId }?.let(::applySavedFilter)
+                        val filter = filters.firstOrNull { it.id == filterId }
+                        if (filter != null) applySavedFilter(filter)
+                        else _uiState.update { it.copy(userMessage = "That saved search no longer exists.") }
                     }
+                }
+                val activeId = uiState.value.activeSavedFilterId
+                if (activeId != null && filters.firstOrNull { it.id == activeId }?.spec != currentFilterSpec()) {
+                    _uiState.update { it.copy(
+                        activeSavedFilterId = null,
+                        userMessage = "Saved search changed or was removed. Your current criteria are preserved.",
+                    ) }
+                    emitSearchRequest()
                 }
             }
         }
@@ -365,6 +379,7 @@ class SearchViewModel @Inject constructor(
                         userMessage = "Saved search added.",
                     )
                 }
+                emitSearchRequest()
             }.onFailure { throwable ->
                 _uiState.update {
                     it.copy(userMessage = throwable.message ?: "Unable to save current search.")
@@ -456,6 +471,8 @@ class SearchViewModel @Inject constructor(
     private fun emitSearchRequest() {
         val state = uiState.value
         savedStateHandle["searchDraft"] = android.os.Bundle().apply {
+            state.activeSavedFilterId?.let { putLong("activeFilter", it) }
+            putString("activeCollection", state.activeSmartCollection?.routeValue)
             putString("query", state.query); putLongArray("categories", state.selectedCategoryIds.toLongArray())
             putStringArrayList("tags", ArrayList(state.selectedTagNames))
             putStringArrayList("health", ArrayList(state.selectedHealthStatuses.map { it.name }))

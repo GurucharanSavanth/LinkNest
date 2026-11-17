@@ -50,7 +50,7 @@ data class DashboardUiState(
 @OptIn(FlowPreview::class)
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
-    savedStateHandle: SavedStateHandle,
+    private val savedStateHandle: SavedStateHandle,
     observeDashboardUseCase: ObserveDashboardUseCase,
     private val seedDefaultCategoryUseCase: SeedDefaultCategoryUseCase,
     private val toggleCategoryCollapsedUseCase: ToggleCategoryCollapsedUseCase,
@@ -67,11 +67,13 @@ class DashboardViewModel @Inject constructor(
 ) : ViewModel() {
     private val deepLinkedCategoryId = savedStateHandle.get<Long>(DASHBOARD_CATEGORY_ID_ARG)?.takeIf { it > 0L }
     private val deepLinkedWebsiteId = savedStateHandle.get<Long>(DASHBOARD_WEBSITE_ID_ARG)?.takeIf { it > 0L }
-    private val queryFlow = MutableStateFlow("")
+    private val queryFlow = MutableStateFlow(savedStateHandle.get<String>("dashboardQuery").orEmpty())
     private var sourceDashboard: DashboardModel = DashboardModel()
+    private var hasLoadedDashboard = false
 
     private val _uiState = MutableStateFlow(
         DashboardUiState(
+            searchQuery = queryFlow.value,
             focusedCategoryId = deepLinkedCategoryId,
             focusedWebsiteId = deepLinkedWebsiteId,
         ),
@@ -85,6 +87,7 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             observeDashboardUseCase().collect { dashboard ->
                 sourceDashboard = dashboard
+                hasLoadedDashboard = true
                 refreshDisplayedDashboard()
             }
         }
@@ -96,6 +99,7 @@ class DashboardViewModel @Inject constructor(
     }
 
     fun onSearchQueryChanged(query: String) {
+        savedStateHandle["dashboardQuery"] = query
         _uiState.update { it.copy(searchQuery = query) }
         queryFlow.value = query
     }
@@ -285,6 +289,7 @@ class DashboardViewModel @Inject constructor(
     }
 
     private fun refreshDisplayedDashboard() {
+        if (!hasLoadedDashboard) return
         val query = _uiState.value.searchQuery.trim().lowercase()
         val dashboard = if (query.isBlank()) {
             sourceDashboard

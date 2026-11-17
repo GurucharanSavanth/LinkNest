@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dashboard_archive_category">"Archive category"</string>
+    <string name="dashboard_cancel">"Cancel"</string>
+    <string name="dashboard_category_name">"Category name"</string>
+    <string name="dashboard_color">"Color"</string>
+    <string name="dashboard_delete">"Delete"</string>
+    <string name="dashboard_delete_category">"Delete category"</string>
+    <string name="dashboard_delete_website">"Delete website"</string>
+    <string name="dashboard_edit_category">"Edit Category"</string>
+    <string name="dashboard_edit_website">"Edit website"</string>
+    <string name="dashboard_icon">"Icon"</string>
+    <string name="dashboard_move_to_another_category">"Move to another category"</string>
+    <string name="dashboard_pin_website">"Pin website"</string>
+    <string name="dashboard_place_name">"Place %1$s"</string>
+    <string name="dashboard_position_name">"Position %1$d: %2$s"</string>
+    <string name="dashboard_rename_or_recolor">"Rename or recolor"</string>
+    <string name="dashboard_reorder_category">"Reorder category"</string>
+    <string name="dashboard_reorder_inside_category">"Reorder inside category"</string>
+    <string name="dashboard_save_category">"Save category"</string>
+    <string name="dashboard_unpin_website">"Unpin website"</string>
+</resources>

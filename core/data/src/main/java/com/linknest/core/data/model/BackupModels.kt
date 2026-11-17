@@ -21,7 +21,12 @@ data class BackupSnapshot(
     val iconCache: List<BackupIconCache> = emptyList(),
     val recentQueries: List<BackupRecentQuery> = emptyList(),
     val preferences: BackupPreferences? = null,
+    val mediaVersion: Int = 1,
+    val assets: List<BackupAsset> = emptyList(),
+    val omittedCustomImages: Int = 0,
 )
+
+data class BackupAsset(val id: String, val mimeType: String, val data: String)
 
 data class BackupCategory(
     val id: Long,
@@ -65,6 +70,7 @@ data class BackupWebsite(
     val customLabel: String?,
     val createdAt: Long,
     val updatedAt: Long,
+    val customIconAssetId: String? = null,
 )
 
 data class BackupTag(
@@ -141,3 +147,7 @@ data class ImportSummary(
     val skippedWebsites: Int,
     val warnings: List<String> = emptyList(),
 )
+
+enum class RecoveryOutcome { ORIGINAL_PRESENT, IMPORTED_PRESENT, COMMIT_RECORDED, UNKNOWN }
+
+data class RecoveryReconciliation(val generationName: String, val outcome: RecoveryOutcome)

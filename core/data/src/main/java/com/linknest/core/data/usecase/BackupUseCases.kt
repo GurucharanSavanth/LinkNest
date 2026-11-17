@@ -17,8 +17,8 @@ class ExportDataUseCase @Inject constructor(
 class ImportDataUseCase @Inject constructor(
     private val backupRepository: BackupRepository,
 ) {
-    suspend operator fun invoke(snapshot: BackupSnapshot): ImportSummary =
-        backupRepository.importSnapshot(snapshot)
+    suspend operator fun invoke(snapshot: BackupSnapshot, recoveryGeneration: String? = null): ImportSummary =
+        backupRepository.importSnapshot(snapshot, recoveryGeneration)
 }
 
 class GetWidgetLinksUseCase @Inject constructor(
@@ -38,4 +38,8 @@ class GetWidgetLinksUseCase @Inject constructor(
                     normalizedUrl = item.normalizedUrl,
                 )
             }
+}
+
+class ReconcileRecoveryUseCase @Inject constructor(private val backupRepository: BackupRepository) {
+    suspend operator fun invoke(): List<com.linknest.core.data.model.RecoveryReconciliation> = backupRepository.reconcileRecovery()
 }

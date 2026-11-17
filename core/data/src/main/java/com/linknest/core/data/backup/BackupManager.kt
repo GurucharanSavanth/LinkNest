@@ -15,7 +15,9 @@ class BackupManager @Inject constructor(
     suspend fun export(snapshot: BackupSnapshot, encrypted: Boolean = false): BackupArtifact =
         withContext(ioDispatcher) {
             val pkg = serializer.serialize(snapshot)
-            val staged = runCatching { fileManager.stageBackup(pkg) }.getOrNull()
+            val staged = try { fileManager.stageBackup(pkg) }
+            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (_: Exception) { null }
             BackupArtifact(
                 fileName = pkg.fileName,
                 filePath = staged?.absolutePath,

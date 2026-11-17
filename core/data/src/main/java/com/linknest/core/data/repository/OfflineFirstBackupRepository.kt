@@ -1,6 +1,12 @@
 package com.linknest.core.data.repository
 
 import androidx.room.withTransaction
+import com.linknest.core.data.backup.BackupMediaStore
+import com.linknest.core.data.backup.BackupFileManager
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import com.linknest.core.data.model.BackupCategory
 import com.linknest.core.data.model.BackupIconCache
 import com.linknest.core.data.model.BackupIntegrityEvent
@@ -52,10 +58,20 @@ class OfflineFirstBackupRepository @Inject constructor(
     private val recentQueryDao: RecentQueryDao,
     private val preferencesDataSource: LinkNestPreferencesDataSource,
     private val searchIndexRepository: SearchIndexRepository,
+    private val backupMediaStore: BackupMediaStore,
+    private val backupFileManager: BackupFileManager,
 ) : BackupRepository {
-    override suspend fun exportSnapshot(): BackupSnapshot {
+    private val backupMutex = Mutex()
+
+    override suspend fun exportSnapshot(): BackupSnapshot = backupMutex.withLock { exportSnapshotUnlocked() }
+
+    override suspend fun reconcileRecovery(): List<com.linknest.core.data.model.RecoveryReconciliation> = backupMutex.withLock {
+        backupFileManager.reconcileRecovery(exportSnapshotUnlocked())
+    }
+
+    private suspend fun exportSnapshotUnlocked(): BackupSnapshot {
         val preferences = preferencesDataSource.userPreferences.first()
-        return database.withTransaction {
+        val snapshot = database.withTransaction {
             val categories = categoryDao.getAllCategories()
             val websites = websiteDao.getAllWebsites()
             val tags = tagDao.getAllTags()
@@ -179,9 +195,11 @@ class OfflineFirstBackupRepository @Inject constructor(
                 ),
             )
         }
+        backupMediaStore.removeUnreferenced(snapshot.websites.mapNotNull { it.customIconUri }.toSet())
+        return backupMediaStore.attach(snapshot)
     }
 
-    override suspend fun importSnapshot(snapshot: BackupSnapshot): ImportSummary {
+    override suspend fun importSnapshot(snapshot: BackupSnapshot, recoveryGeneration: String?): ImportSummary = backupMutex.withLock {
         require(snapshot.schemaVersion <= CURRENT_DATABASE_SCHEMA_VERSION) {
             "Backup schema version ${snapshot.schemaVersion} is newer than supported schema $CURRENT_DATABASE_SCHEMA_VERSION."
         }
@@ -193,16 +211,23 @@ class OfflineFirstBackupRepository @Inject constructor(
 
         com.linknest.core.data.backup.validateBackup(snapshot)
         validateForeignKeys(snapshot)
-        if (snapshot.iconCache.isNotEmpty() || snapshot.websites.any { it.customIconUri != null }) {
+        if (snapshot.omittedCustomImages > 0) warnings.add("${snapshot.omittedCustomImages} custom images were unavailable when exported.")
+        if (snapshot.iconCache.isNotEmpty() || snapshot.websites.any { it.customIconUri != null && it.customIconAssetId == null }) {
             warnings.add("Device-local images were omitted; remote icons can be fetched again.")
         }
 
+        recoveryGeneration?.let { generation ->
+            try { backupFileManager.prepareRecoveryOperation(generation, exportSnapshotUnlocked(), snapshot) }
+            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (failure: Exception) { throw BackupRestoreException("Recovery preparation failed. Original data was preserved: ${failure.message}", failure) }
+        }
         val summary = try {
+            val assetUris = backupMediaStore.publish(snapshot)
             database.withTransaction {
                 clearForRestore()
                 restoreCategories(snapshot.categories)
                 restoreTags(snapshot.tags)
-                restoreWebsites(snapshot.websites)
+                restoreWebsites(snapshot.websites, assetUris)
                 restoreWebsiteTags(snapshot.websiteTags)
                 restoreMappings(snapshot.mappings)
                 restoreSavedFilters(snapshot.savedFilters)
@@ -223,25 +248,46 @@ class OfflineFirstBackupRepository @Inject constructor(
                 )
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
+            cleanupMediaAfterFailure(e)
             throw e
         } catch (e: Exception) {
+            cleanupMediaAfterFailure(e)
             throw BackupRestoreException("Import failed: ${e.message}. Original data was preserved.", e)
+        }
+
+        withContext(NonCancellable) {
+            recoveryGeneration?.let { generation ->
+                try { backupFileManager.markRecoveryCommitted(generation) }
+                catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                catch (failure: Exception) { warnings.add("Library replaced; recovery commit marker needs reconciliation: ${failure.message}") }
+            }
+            try { backupMediaStore.removeUnreferenced(websiteDao.getAllWebsites().mapNotNull { it.customIconUri }.toSet()) }
+            catch (failure: Exception) { warnings.add("Library replaced; temporary image cleanup needs retry: ${failure.message}") }
         }
 
         snapshot.preferences?.let { preferences ->
             try {
                 preferencesDataSource.replaceUserPreferences(preferences.toUserPreferences())
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
-                warnings.add("Failed to restore preferences: ${e.message}")
+                warnings.add("Library replaced, but preferences could not be restored: ${e.message}")
             }
         } ?: warnings.add("Backup did not include preferences; existing preferences were preserved.")
 
         try {
             searchIndexRepository.rebuildIndex()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
-            warnings.add("Failed to rebuild search index: ${e.message}")
+            warnings.add("Library replaced, but search index needs repair: ${e.message}")
         }
-        return summary.copy(warnings = warnings)
+        summary.copy(warnings = warnings)
+    }
+
+    private suspend fun cleanupMediaAfterFailure(original: Exception) = withContext(NonCancellable) {
+        try { backupMediaStore.removeUnreferenced(websiteDao.getAllWebsites().mapNotNull { it.customIconUri }.toSet()) }
+        catch (cleanup: Exception) { original.addSuppressed(cleanup) }
     }
 
     private fun validateForeignKeys(snapshot: BackupSnapshot) {
@@ -318,7 +364,7 @@ class OfflineFirstBackupRepository @Inject constructor(
         }
     }
 
-    private suspend fun restoreWebsites(websites: List<BackupWebsite>) {
+    private suspend fun restoreWebsites(websites: List<BackupWebsite>, assetUris: Map<String, String>) {
         websites.sortedBy { it.id }.forEach { website ->
             websiteDao.insertWebsite(
                 WebsiteEntryEntity(
@@ -332,7 +378,7 @@ class OfflineFirstBackupRepository @Inject constructor(
                     ogImageUrl = website.ogImageUrl,
                     faviconUrl = website.faviconUrl,
                     chosenIconSource = website.chosenIconSource,
-                    customIconUri = null,
+                    customIconUri = website.customIconAssetId?.let(assetUris::get),
                     emojiIcon = website.emojiIcon,
                     tileSizeDp = website.tileSizeDp,
                     sortOrder = website.sortOrder,

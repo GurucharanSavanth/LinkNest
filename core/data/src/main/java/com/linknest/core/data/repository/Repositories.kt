@@ -97,7 +97,8 @@ interface DomainCategoryMappingRepository {
 
 interface BackupRepository {
     suspend fun exportSnapshot(): BackupSnapshot
-    suspend fun importSnapshot(snapshot: BackupSnapshot): ImportSummary
+    suspend fun importSnapshot(snapshot: BackupSnapshot, recoveryGeneration: String? = null): ImportSummary
+    suspend fun reconcileRecovery(): List<com.linknest.core.data.model.RecoveryReconciliation>
 }
 
 interface SavedFilterRepository {

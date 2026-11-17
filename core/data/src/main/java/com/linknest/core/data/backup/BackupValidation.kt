@@ -7,6 +7,7 @@ import com.linknest.core.model.WebsitePriority
 import org.json.JSONObject
 
 fun validateBackup(snapshot: BackupSnapshot) {
+    validateAssets(snapshot)
     require(snapshot.schemaVersion in 1..6) { "Unsupported database schema." }
     fun ids(values: List<Long>) {
         require(values.all { it > 0 } && values.distinct().size == values.size) { "Backup IDs must be positive and unique." }

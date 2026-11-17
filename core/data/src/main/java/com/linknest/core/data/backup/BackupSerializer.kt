@@ -1,5 +1,6 @@
 package com.linknest.core.data.backup
 
+import com.linknest.core.data.model.BackupAsset
 import com.linknest.core.data.model.BackupCategory
 import com.linknest.core.data.model.BackupIconCache
 import com.linknest.core.data.model.BackupIntegrityEvent
@@ -43,6 +44,7 @@ class BackupSerializer @Inject constructor() {
         val compressed = gzip(json)
         val checksum = compressed.sha256()
         val envelope = buildEnvelope(snapshot, compressed, checksum).toString(2)
+        require(envelope.length <= MAX_CHARS) { "Encoded backup is too large to export safely." }
         return BackupPackage(
             payload = envelope,
             fileName = "linknest-backup-${snapshot.exportedAt}.json",
@@ -130,6 +132,7 @@ class BackupSerializer @Inject constructor() {
                     faviconUrl = item.optString("faviconUrl").takeIf(String::isNotBlank),
                     chosenIconSource = runCatching { IconSource.valueOf(item.getString("chosenIconSource")) }.getOrDefault(IconSource.GENERATED),
                     customIconUri = item.optString("customIconUri").takeIf(String::isNotBlank),
+                    customIconAssetId = item.optString("customIconAssetId").takeIf(String::isNotBlank),
                     emojiIcon = item.optString("emojiIcon").takeIf(String::isNotBlank),
                     tileSizeDp = item.optInt("tileSizeDp").takeIf { it > 0 },
                     sortOrder = item.getInt("sortOrder"),
@@ -205,6 +208,11 @@ class BackupSerializer @Inject constructor() {
                     lastUsedAt = item.getLong("lastUsedAt"),
                 )
             },
+            mediaVersion = root.optInt("mediaVersion", 1),
+            omittedCustomImages = root.optInt("omittedCustomImages", 0),
+            assets = root.optJSONArray("assets").mapObjectsOrEmpty { asset ->
+                BackupAsset(asset.getString("id"), asset.getString("mimeType"), asset.getString("data"))
+            },
             // Preferences are an optional section (the repository treats a missing/failed prefs
             // block as a warning, not an import failure), so parse leniently: a missing key falls
             // back to a default rather than throwing JSONException and aborting the whole import.
@@ -224,6 +232,11 @@ class BackupSerializer @Inject constructor() {
         put("schemaVersion", snapshot.schemaVersion)
         put("exportedAt", snapshot.exportedAt)
         put("appVersion", snapshot.appVersion)
+        put("mediaVersion", snapshot.mediaVersion)
+        put("omittedCustomImages", snapshot.omittedCustomImages)
+        put("assets", JSONArray().apply {
+            snapshot.assets.forEach { asset -> put(JSONObject().put("id", asset.id).put("mimeType", asset.mimeType).put("data", asset.data)) }
+        })
         put("categories", JSONArray().apply {
             snapshot.categories.forEach { c ->
                 put(JSONObject().apply {
@@ -242,6 +255,7 @@ class BackupSerializer @Inject constructor() {
                     put("normalizedUrl", w.normalizedUrl); put("domain", w.domain)
                     put("ogImageUrl", w.ogImageUrl); put("faviconUrl", w.faviconUrl)
                     put("chosenIconSource", w.chosenIconSource.name); put("customIconUri", w.customIconUri)
+                    put("customIconAssetId", w.customIconAssetId)
                     put("emojiIcon", w.emojiIcon); put("tileSizeDp", w.tileSizeDp)
                     put("sortOrder", w.sortOrder); put("isPinned", w.isPinned); put("openCount", w.openCount)
                     put("lastOpenedAt", w.lastOpenedAt); put("lastCheckedAt", w.lastCheckedAt)

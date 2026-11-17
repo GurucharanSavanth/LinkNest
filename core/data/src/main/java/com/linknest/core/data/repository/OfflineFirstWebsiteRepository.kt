@@ -19,6 +19,8 @@ import com.linknest.core.model.DuplicateMatch
 import com.linknest.core.model.DuplicateMatchType
 import com.linknest.core.model.FollowUpStatus
 import com.linknest.core.model.HealthStatus
+import com.linknest.core.model.IconSource
+import com.linknest.core.network.model.MetadataResult
 import com.linknest.core.model.WebsiteListItem
 import com.linknest.core.network.UrlMetadataFetcher
 import com.linknest.core.network.model.NormalizedUrl
@@ -253,7 +255,14 @@ class OfflineFirstWebsiteRepository @Inject constructor(
         searchIndexRepository.indexWebsite(websiteId)
     }
 
-    override suspend fun refreshStaleMetadata(staleBefore: Long, limit: Int): Int {
+    override suspend fun refreshStaleMetadata(staleBefore: Long, limit: Int): Int =
+        refreshStaleMetadata(staleBefore, limit, metadataFetcher::fetch)
+
+    internal suspend fun refreshStaleMetadata(
+        staleBefore: Long,
+        limit: Int,
+        fetchMetadata: suspend (NormalizedUrl) -> MetadataResult,
+    ): Int {
         val entries = websiteDao.getEntriesNeedingMetadataRefresh(
             staleBefore = staleBefore,
             limit = limit,
@@ -261,8 +270,8 @@ class OfflineFirstWebsiteRepository @Inject constructor(
 
         entries.forEach { entry ->
             currentCoroutineContext().ensureActive()
-            val refreshed = metadataFetcher.fetch(
-                normalizedUrl = NormalizedUrl(
+            val refreshed = fetchMetadata(
+                NormalizedUrl(
                     rawInput = entry.normalizedUrl,
                     normalizedUrl = entry.normalizedUrl,
                     host = runCatching { URI(entry.normalizedUrl).host.orEmpty() }.getOrDefault(entry.domain),
@@ -270,7 +279,9 @@ class OfflineFirstWebsiteRepository @Inject constructor(
                 ),
             )
             val now = timeProvider.now()
+            val hasFreshMetadata = refreshed.chosenIconSource != IconSource.GENERATED
             val healthStatus = when {
+                !hasFreshMetadata -> HealthStatus.UNKNOWN
                 refreshed.finalUrl != entry.normalizedUrl -> HealthStatus.REDIRECTED
                 refreshed.title.contains("login", ignoreCase = true) ||
                     refreshed.finalUrl.contains("login", ignoreCase = true) -> HealthStatus.LOGIN_REQUIRED
@@ -279,19 +290,29 @@ class OfflineFirstWebsiteRepository @Inject constructor(
                 else -> HealthStatus.OK
             }
 
-            websiteDao.updateMetadata(
-                websiteId = entry.id,
-                title = refreshed.title,
-                canonicalUrl = refreshed.canonicalUrl,
-                finalUrl = refreshed.finalUrl,
-                ogImageUrl = refreshed.ogImageUrl,
-                faviconUrl = refreshed.faviconUrl,
-                chosenIconSource = refreshed.chosenIconSource,
-                lastCheckedAt = now,
-                healthStatus = healthStatus,
-                updatedAt = now,
-            )
-            searchIndexRepository.indexWebsite(entry.id)
+            val updated = database.withTransaction {
+                val current = websiteDao.getWebsiteById(entry.id) ?: return@withTransaction false
+                // A concurrent edit, delete, or restore must not receive this older request's result.
+                if (current != entry) return@withTransaction false
+                websiteDao.updateMetadata(
+                    websiteId = entry.id,
+                    title = current.title.ifBlank { refreshed.title },
+                    canonicalUrl = if (hasFreshMetadata) refreshed.canonicalUrl else current.canonicalUrl,
+                    finalUrl = if (hasFreshMetadata) refreshed.finalUrl else current.finalUrl,
+                    ogImageUrl = if (hasFreshMetadata) refreshed.ogImageUrl else current.ogImageUrl,
+                    faviconUrl = if (hasFreshMetadata) refreshed.faviconUrl else current.faviconUrl,
+                    chosenIconSource = if (!hasFreshMetadata || current.chosenIconSource in setOf(IconSource.CUSTOM, IconSource.EMOJI)) {
+                        current.chosenIconSource
+                    } else {
+                        refreshed.chosenIconSource
+                    },
+                    lastCheckedAt = now,
+                    healthStatus = healthStatus,
+                    updatedAt = now,
+                )
+                true
+            }
+            if (updated) searchIndexRepository.indexWebsite(entry.id)
         }
 
         return entries.size

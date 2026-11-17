@@ -3,6 +3,7 @@ package com.linknest.core.data.repository
 import android.content.Context
 import android.util.Log
 import androidx.appsearch.app.AppSearchBatchResult
+import androidx.appsearch.app.AppSearchResult
 import androidx.appsearch.app.AppSearchSchema
 import androidx.appsearch.app.AppSearchSession
 import androidx.appsearch.app.GenericDocument
@@ -11,8 +12,10 @@ import androidx.appsearch.app.RemoveByDocumentIdRequest
 import androidx.appsearch.app.SearchSpec
 import androidx.appsearch.app.SetSchemaRequest
 import androidx.appsearch.localstorage.LocalStorage
+import androidx.room.withTransaction
 import com.google.common.util.concurrent.ListenableFuture
 import com.linknest.core.common.coroutine.IoDispatcher
+import com.linknest.core.database.LinkNestDatabase
 import com.linknest.core.database.dao.CategoryDao
 import com.linknest.core.database.dao.IconCacheDao
 import com.linknest.core.database.dao.SavedFilterDao
@@ -34,6 +37,14 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
@@ -51,259 +62,263 @@ class AppSearchBackedSearchIndexRepository @Inject constructor(
     private val iconCacheDao: IconCacheDao,
     private val savedFilterDao: SavedFilterDao,
     @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+    private val database: LinkNestDatabase,
 ) : SearchIndexRepository {
-    private val sessionMutex = Mutex()
+    internal constructor(
+        context: Context,
+        database: LinkNestDatabase,
+        ioDispatcher: CoroutineDispatcher,
+        reconciliationScope: CoroutineScope? = null,
+        retryDelay: suspend (Long) -> Unit = { delay(it) },
+        sessionFactory: suspend () -> AppSearchSession,
+    ) : this(context, database.websiteDao(), database.categoryDao(), database.tagDao(),
+        database.iconCacheDao(), database.savedFilterDao(), ioDispatcher, database) {
+        this.sessionFactory = sessionFactory
+        this.reconciliationScope = reconciliationScope
+        this.retryDelay = retryDelay
+    }
 
-    @Volatile
+    private var reconciliationScope: CoroutineScope? = null
+    private var retryDelay: suspend (Long) -> Unit = { delay(it) }
+    private var reconciliationJob: Job? = null
+    private var sessionFactory: (suspend () -> AppSearchSession)? = null
+
+    // One owner covers reads, rebuilds, mutations, and session reset. Never acquire it inside a Room transaction.
+    private val indexMutex = Mutex()
     private var searchSession: AppSearchSession? = null
-
-    @Volatile
     private var hasWarmedIndex = false
 
-    override suspend fun warmIndex() = withContext(ioDispatcher) {
-        if (hasWarmedIndex) return@withContext
+    override suspend fun warmIndex() = withIndex(Unit) { }
 
-        runCatching {
-            val hadExistingStorage = appSearchStorageHasFiles()
-            var session = requireSession()
-            if (session.getNamespacesAsync().await().isEmpty()) {
-                if (hadExistingStorage) {
-                    Log.w(TAG, "AppSearch opened with existing on-disk files but no namespaces. Resetting local index.")
-                    resetSearchStorage()
-                    session = requireSession()
-                }
-                rebuildAll(session)
+    override suspend fun rebuildIndex() = withContext(ioDispatcher) {
+        indexMutex.withLock {
+            try {
+                rebuildIndexLocked(requireSession())
+            } catch (throwable: Exception) {
+                indexFailedLocked(throwable)
+                throw throwable
             }
-            hasWarmedIndex = true
-        }.getOrElse { throwable ->
-            if (throwable is CancellationException) throw throwable
         }
     }
 
-    override suspend fun rebuildIndex() = withContext(ioDispatcher) {
-        runCatching {
-            val session = requireSession()
-            clearIndexedDocuments(session)
-            rebuildAll(session)
-            hasWarmedIndex = true
-        }.getOrElse { throwable ->
-            throw throwable
+    private suspend fun rebuildIndexLocked(session: AppSearchSession) {
+        hasWarmedIndex = false
+        // Always reconcile once per process: a namespace may contain only a partial interrupted rebuild.
+        clearIndexedDocuments(session)
+        rebuildAll(session)
+        currentCoroutineContext().ensureActive()
+        hasWarmedIndex = true
+    }
+
+    private suspend fun <T> withIndex(fallback: T, block: suspend (AppSearchSession) -> T): T =
+        withContext(ioDispatcher) {
+            indexMutex.withLock {
+                try {
+                    val session = requireSession()
+                    if (!hasWarmedIndex) rebuildIndexLocked(session)
+                    block(session)
+                } catch (cancelled: CancellationException) {
+                    if (!hasWarmedIndex) indexFailedLocked(cancelled)
+                    throw cancelled
+                } catch (throwable: Exception) {
+                    indexFailedLocked(throwable)
+                    fallback
+                }
+            }
+        }
+
+    private suspend fun mutateIndex(block: suspend (AppSearchSession) -> Unit) = withIndex(Unit) { session ->
+        hasWarmedIndex = false
+        block(session)
+        currentCoroutineContext().ensureActive()
+        hasWarmedIndex = true
+    }
+
+    private fun indexFailedLocked(throwable: Exception) {
+        resetSessionLocked()
+        if (throwable !is CancellationException) {
+            Log.w(TAG, "Search index operation failed; background reconciliation scheduled.", throwable)
+        }
+        if (reconciliationJob?.isActive == true) return
+        val scope = reconciliationScope ?: CoroutineScope(SupervisorJob() + ioDispatcher).also {
+            reconciliationScope = it
+        }
+        reconciliationJob = scope.launch {
+            repeat(RECONCILIATION_ATTEMPTS) { attempt ->
+                retryDelay(RECONCILIATION_DELAY_MILLIS shl attempt)
+                val ready = indexMutex.withLock {
+                    if (hasWarmedIndex) return@withLock true
+                    try {
+                        rebuildIndexLocked(requireSession())
+                        true
+                    } catch (cancelled: CancellationException) {
+                        resetSessionLocked()
+                        throw cancelled
+                    } catch (failure: Exception) {
+                        resetSessionLocked()
+                        Log.w(TAG, "Background search reconciliation attempt ${attempt + 1} failed.", failure)
+                        false
+                    }
+                }
+                if (ready) return@launch
+            }
+            Log.w(TAG, "Background search reconciliation exhausted; Room fallback remains available until the next use.")
         }
     }
 
     override suspend fun search(
         query: String,
         limit: Int,
-    ): List<SearchResultItem> = withContext(ioDispatcher) {
+    ): List<SearchResultItem> = withIndex(emptyList<SearchResultItem>()) { session ->
         val sanitized = query.trim()
-        if (sanitized.isBlank()) return@withContext emptyList()
+        if (sanitized.isBlank()) return@withIndex emptyList()
 
-        runCatching {
-            warmIndex()
-            val searchResults = requireSession().search(
-                sanitized,
-                SearchSpec.Builder()
-                    .setTermMatch(SearchSpec.TERM_MATCH_PREFIX)
-                    .addFilterSchemas(WEBSITE_SCHEMA)
-                    .setResultCountPerPage(limit.coerceAtLeast(1))
-                    .build(),
-            )
+        val searchResults = session.search(
+            sanitized,
+            SearchSpec.Builder()
+                .setTermMatch(SearchSpec.TERM_MATCH_PREFIX)
+                .addFilterSchemas(WEBSITE_SCHEMA)
+                .setResultCountPerPage(limit.coerceAtLeast(1))
+                .build(),
+        )
 
-            try {
-                buildList {
-                    while (size < limit) {
-                        val page = searchResults.getNextPageAsync().await()
-                        if (page.isEmpty()) break
-                        page.forEach { result ->
-                            add(result.getGenericDocument().toSearchResultItem(sanitized))
-                        }
+        try {
+            buildList {
+                while (size < limit) {
+                    val page = searchResults.getNextPageAsync().await()
+                    if (page.isEmpty()) break
+                    page.forEach { result ->
+                        add(result.getGenericDocument().toSearchResultItem(sanitized))
                     }
-                }.take(limit)
-            } finally {
-                searchResults.close()
-            }
-        }.getOrElse { throwable ->
-            if (throwable is CancellationException) throw throwable
-            emptyList()
+                }
+            }.take(limit)
+        } finally {
+            searchResults.close()
         }
     }
 
     override suspend fun suggestions(
         query: String,
         limit: Int,
-    ): List<SearchSuggestion> = withContext(ioDispatcher) {
+    ): List<SearchSuggestion> = withIndex(emptyList<SearchSuggestion>()) { session ->
         val sanitized = query.trim()
-        if (sanitized.isBlank()) return@withContext emptyList()
+        if (sanitized.isBlank()) return@withIndex emptyList()
 
-        runCatching {
-            warmIndex()
-            val searchResults = requireSession().search(
-                sanitized,
-                SearchSpec.Builder()
-                    .setTermMatch(SearchSpec.TERM_MATCH_PREFIX)
-                    .setResultCountPerPage((limit * 3).coerceAtLeast(limit))
-                    .build(),
-            )
+        val searchResults = session.search(
+            sanitized,
+            SearchSpec.Builder()
+                .setTermMatch(SearchSpec.TERM_MATCH_PREFIX)
+                .setResultCountPerPage((limit * 3).coerceAtLeast(limit))
+                .build(),
+        )
 
-            try {
-                val suggestions = linkedMapOf<String, SearchSuggestion>()
-                while (suggestions.size < limit) {
-                    val page = searchResults.getNextPageAsync().await()
-                    if (page.isEmpty()) break
-                    page.forEach { result ->
-                        result.getGenericDocument().collectSuggestions(
-                            query = sanitized,
-                            sink = suggestions,
-                        )
-                    }
+        try {
+            val suggestions = linkedMapOf<String, SearchSuggestion>()
+            while (suggestions.size < limit) {
+                val page = searchResults.getNextPageAsync().await()
+                if (page.isEmpty()) break
+                page.forEach { result ->
+                    result.getGenericDocument().collectSuggestions(
+                        query = sanitized,
+                        sink = suggestions,
+                    )
                 }
-                suggestions.values.take(limit)
-            } finally {
-                searchResults.close()
             }
-        }.getOrElse { throwable ->
-            if (throwable is CancellationException) throw throwable
-            emptyList()
+            suggestions.values.take(limit)
+        } finally {
+            searchResults.close()
         }
     }
 
-    override suspend fun indexWebsite(websiteId: Long) = withContext(ioDispatcher) {
-        runCatching {
-            warmIndex()
-            val session = requireSession()
-            val document = buildWebsiteDocument(websiteId)
-            if (document == null) {
-                removeDocument(session, WEBSITE_NAMESPACE, websiteDocumentId(websiteId))
-            } else {
-                putDocuments(session, listOf(document))
-            }
-        }.getOrElse { throwable ->
-            if (throwable is CancellationException) throw throwable
+    override suspend fun indexWebsite(websiteId: Long) = mutateIndex { session ->
+        indexWebsiteLocked(session, websiteId)
+    }
+
+    // Re-read Room even for removal: an import may have restored this ID while the request waited.
+    override suspend fun removeWebsite(websiteId: Long) = indexWebsite(websiteId)
+
+    private suspend fun indexWebsiteLocked(session: AppSearchSession, websiteId: Long) {
+        val document = buildWebsiteDocument(websiteId)
+        if (document == null) {
+            removeDocument(session, WEBSITE_NAMESPACE, websiteDocumentId(websiteId))
+        } else {
+            putDocuments(session, listOf(document))
         }
     }
 
-    override suspend fun removeWebsite(websiteId: Long) = withContext(ioDispatcher) {
-        runCatching {
-            removeDocument(requireSession(), WEBSITE_NAMESPACE, websiteDocumentId(websiteId))
-        }.getOrElse { throwable ->
-            if (throwable is CancellationException) throw throwable
-        }
-    }
-
-    override suspend fun indexCategory(categoryId: Long) = withContext(ioDispatcher) {
-        runCatching {
-            warmIndex()
-            val session = requireSession()
-            val category = categoryDao.getCategoryById(categoryId)
-            if (category == null || category.isArchived) {
-                removeDocument(session, AUX_NAMESPACE, categoryDocumentId(categoryId))
-            } else {
-                putDocuments(session, listOf(category.toDocument()))
-            }
-            reindexCategoryWebsites(categoryId)
-        }.getOrElse { throwable ->
-            if (throwable is CancellationException) throw throwable
-        }
-    }
-
-    override suspend fun removeCategory(categoryId: Long) = withContext(ioDispatcher) {
-        runCatching {
-            val session = requireSession()
+    override suspend fun indexCategory(categoryId: Long) = mutateIndex { session ->
+        val category = categoryDao.getCategoryById(categoryId)
+        if (category == null || category.isArchived) {
             removeDocument(session, AUX_NAMESPACE, categoryDocumentId(categoryId))
-            reindexCategoryWebsites(categoryId)
-        }.getOrElse { throwable ->
-            if (throwable is CancellationException) throw throwable
+        } else {
+            putDocuments(session, listOf(category.toDocument()))
+        }
+        reindexCategoryWebsitesLocked(session, categoryId)
+    }
+
+    override suspend fun removeCategory(categoryId: Long) = indexCategory(categoryId)
+
+    override suspend fun indexTag(tagId: Long) = mutateIndex { session ->
+        val tag = tagDao.getAllTags().firstOrNull { it.id == tagId }
+        if (tag == null) {
+            removeDocument(session, AUX_NAMESPACE, tagDocumentId(tagId))
+        } else {
+            putDocuments(session, listOf(tag.toDocument()))
         }
     }
 
-    override suspend fun indexTag(tagId: Long) = withContext(ioDispatcher) {
-        runCatching {
-            warmIndex()
-            val session = requireSession()
-            val tag = tagDao.getAllTags().firstOrNull { candidate -> candidate.id == tagId }
-            if (tag == null) {
-                removeDocument(session, AUX_NAMESPACE, tagDocumentId(tagId))
-            } else {
-                putDocuments(session, listOf(tag.toDocument()))
-            }
-        }.getOrElse { throwable ->
-            if (throwable is CancellationException) throw throwable
+    override suspend fun removeTag(tagId: Long) = indexTag(tagId)
+
+    override suspend fun indexSavedFilter(filterId: Long) = mutateIndex { session ->
+        val filter = savedFilterDao.getSavedFilterById(filterId)
+        if (filter == null) {
+            removeDocument(session, AUX_NAMESPACE, savedFilterDocumentId(filterId))
+        } else {
+            putDocuments(session, listOf(filter.toDocument()))
         }
     }
 
-    override suspend fun removeTag(tagId: Long) = withContext(ioDispatcher) {
-        runCatching {
-            removeDocument(requireSession(), AUX_NAMESPACE, tagDocumentId(tagId))
-        }.getOrElse { throwable ->
-            if (throwable is CancellationException) throw throwable
-        }
+    override suspend fun removeSavedFilter(filterId: Long) = indexSavedFilter(filterId)
+
+    override suspend fun reindexCategoryWebsites(categoryId: Long) = mutateIndex { session ->
+        reindexCategoryWebsitesLocked(session, categoryId)
     }
 
-    override suspend fun indexSavedFilter(filterId: Long) = withContext(ioDispatcher) {
-        runCatching {
-            warmIndex()
-            val session = requireSession()
-            val filter = savedFilterDao.getSavedFilterById(filterId)
-            if (filter == null) {
-                removeDocument(session, AUX_NAMESPACE, savedFilterDocumentId(filterId))
-            } else {
-                putDocuments(session, listOf(filter.toDocument()))
-            }
-        }.getOrElse { throwable ->
-            if (throwable is CancellationException) throw throwable
-        }
-    }
-
-    override suspend fun removeSavedFilter(filterId: Long) = withContext(ioDispatcher) {
-        runCatching {
-            removeDocument(requireSession(), AUX_NAMESPACE, savedFilterDocumentId(filterId))
-        }.getOrElse { throwable ->
-            if (throwable is CancellationException) throw throwable
-        }
-    }
-
-    override suspend fun reindexCategoryWebsites(categoryId: Long) = withContext(ioDispatcher) {
-        runCatching {
-            warmIndex()
-            val session = requireSession()
-            websiteDao.getWebsitesByCategory(categoryId).forEach { entity ->
-                val document = buildWebsiteDocument(entity.id)
-                if (document == null) {
-                    removeDocument(session, WEBSITE_NAMESPACE, websiteDocumentId(entity.id))
-                } else {
-                    putDocuments(session, listOf(document))
-                }
-            }
-        }.getOrElse { throwable ->
-            if (throwable is CancellationException) throw throwable
+    private suspend fun reindexCategoryWebsitesLocked(session: AppSearchSession, categoryId: Long) {
+        websiteDao.getWebsitesByCategory(categoryId).forEach { entity ->
+            indexWebsiteLocked(session, entity.id)
         }
     }
 
     private suspend fun rebuildAll(session: AppSearchSession) {
-        val categories = categoryDao.getActiveCategories()
-        val categoriesById = categories.associateBy(CategoryEntity::id)
-        val tags = tagDao.getAllTags()
-        val tagsById = tags.associateBy(TagEntity::id)
-        val tagNamesByWebsiteId = tagDao.getAllCrossRefs()
-            .groupBy(
-                keySelector = { crossRef -> crossRef.websiteId },
-                valueTransform = { crossRef -> tagsById[crossRef.tagId]?.name.orEmpty() },
-            )
+        // Materialize a coherent source snapshot, then release Room before waiting on AppSearch.
+        val allDocuments = database.withTransaction {
+            val categories = categoryDao.getActiveCategories()
+            val categoriesById = categories.associateBy(CategoryEntity::id)
+            val tags = tagDao.getAllTags()
+            val tagsById = tags.associateBy(TagEntity::id)
+            val tagNamesByWebsiteId = tagDao.getAllCrossRefs()
+                .groupBy(
+                    keySelector = { crossRef -> crossRef.websiteId },
+                    valueTransform = { crossRef -> tagsById[crossRef.tagId]?.name.orEmpty() },
+                )
 
-        val websiteDocuments = websiteDao.getAllWebsites().mapNotNull { website ->
-            val category = categoriesById[website.categoryId] ?: return@mapNotNull null
-            website.toDocument(
-                categoryName = category.name,
-                tagNames = tagNamesByWebsiteId[website.id].orEmpty().filter(String::isNotBlank),
-                cachedIconUri = iconCacheDao.getByWebsiteId(website.id)?.localUri,
-            )
-        }
+            val iconsByWebsiteId = iconCacheDao.getAll().associateBy { it.websiteId }
+            val websiteDocuments = websiteDao.getAllWebsites().mapNotNull { website ->
+                val category = categoriesById[website.categoryId] ?: return@mapNotNull null
+                website.toDocument(
+                    categoryName = category.name,
+                    tagNames = tagNamesByWebsiteId[website.id].orEmpty().filter(String::isNotBlank),
+                    cachedIconUri = iconsByWebsiteId[website.id]?.localUri,
+                )
+            }
 
-        val allDocuments = buildList {
-            addAll(categories.map { category -> category.toDocument() })
-            addAll(tags.map { tag -> tag.toDocument() })
-            addAll(savedFilterDao.getSavedFilters().map { filter -> filter.toDocument() })
-            addAll(websiteDocuments)
+            buildList {
+                addAll(categories.map { category -> category.toDocument() })
+                addAll(tags.map { tag -> tag.toDocument() })
+                addAll(savedFilterDao.getSavedFilters().map { filter -> filter.toDocument() })
+                addAll(websiteDocuments)
+            }
         }
 
         if (allDocuments.isNotEmpty()) {
@@ -322,51 +337,54 @@ class AppSearchBackedSearchIndexRepository @Inject constructor(
         )
     }
 
-    private suspend fun requireSession(): AppSearchSession = sessionMutex.withLock {
-        searchSession?.let { return@withLock it }
+    private suspend fun requireSession(): AppSearchSession {
+        searchSession?.let { return it }
 
-        val created = runCatching {
-            createSession()
-        }.recoverCatching { throwable ->
-            if (throwable is CancellationException) throw throwable
-            Log.w(TAG, "AppSearch session creation failed. Resetting local index and retrying.", throwable)
-            resetSearchStorage()
-            createSession()
-        }.getOrThrow()
-
-        searchSession = created
-        created
+        // Finish opening/schema setup before releasing the owner, even if its caller is canceled.
+        return withContext(NonCancellable) {
+            val created = runCatching {
+                createSession()
+            }.recoverCatching { throwable ->
+                if (throwable is CancellationException) throw throwable
+                Log.w(TAG, "AppSearch session creation failed. Reopening the session once.", throwable)
+                resetSessionLocked()
+                createSession()
+            }.getOrThrow()
+            searchSession = created
+            created
+        }
     }
 
     private suspend fun createSession(): AppSearchSession {
-        val created = LocalStorage.createSearchSessionAsync(
+        val created = sessionFactory?.invoke() ?: LocalStorage.createSearchSessionAsync(
             LocalStorage.SearchContext.Builder(context, APP_SEARCH_DATABASE).build(),
         ).await()
 
-        created.setSchemaAsync(
-            SetSchemaRequest.Builder()
-                .addSchemas(
-                    websiteSchema(),
-                    categorySchema(),
-                    tagSchema(),
-                    savedFilterSchema(),
-                )
-                .setForceOverride(false)
-                .build(),
-        ).await()
+        try {
+            created.setSchemaAsync(
+                SetSchemaRequest.Builder()
+                    .addSchemas(
+                        websiteSchema(),
+                        categorySchema(),
+                        tagSchema(),
+                        savedFilterSchema(),
+                    )
+                    .setForceOverride(false)
+                    .build(),
+            ).awaitMutation()
+        } catch (throwable: Throwable) {
+            created.close()
+            throw throwable
+        }
         return created
     }
 
-    private fun appSearchStorageHasFiles(): Boolean {
-        val storageDir = context.filesDir.resolve(APP_SEARCH_STORAGE_DIRECTORY)
-        return storageDir.exists() && storageDir.walkTopDown().any { file -> file.isFile }
-    }
-
-    private fun resetSearchStorage() {
+    private fun resetSessionLocked() {
+        // Never delete the shared AppSearch directory for a transient session or document failure.
         runCatching { searchSession?.close() }
+            .onFailure { Log.w(TAG, "Search session close failed.", it) }
         searchSession = null
         hasWarmedIndex = false
-        context.filesDir.resolve(APP_SEARCH_STORAGE_DIRECTORY).deleteRecursively()
     }
 
     private suspend fun putDocuments(
@@ -378,7 +396,7 @@ class AppSearchBackedSearchIndexRepository @Inject constructor(
             PutDocumentsRequest.Builder()
                 .addGenericDocuments(documents)
                 .build(),
-        ).await().throwIfFailed()
+        ).awaitMutation().throwIfFailed()
     }
 
     private suspend fun removeDocument(
@@ -390,7 +408,7 @@ class AppSearchBackedSearchIndexRepository @Inject constructor(
             RemoveByDocumentIdRequest.Builder(namespace)
                 .addIds(documentId)
                 .build(),
-        ).await().throwIfFailed()
+        ).awaitMutation().throwIfFailed(ignoreNotFound = true)
     }
 
     private suspend fun clearIndexedDocuments(session: AppSearchSession) {
@@ -399,7 +417,7 @@ class AppSearchBackedSearchIndexRepository @Inject constructor(
             SearchSpec.Builder()
                 .addFilterNamespaces(WEBSITE_NAMESPACE, AUX_NAMESPACE)
                 .build(),
-        ).await()
+        ).awaitMutation()
     }
 
     private fun websiteSchema(): AppSearchSchema = AppSearchSchema.Builder(WEBSITE_SCHEMA)
@@ -720,6 +738,9 @@ class AppSearchBackedSearchIndexRepository @Inject constructor(
     ): GenericDocument.Builder<GenericDocument.Builder<*>> =
         GenericDocument.Builder(namespace, documentId, schemaType)
 
+    // Cancellation must not release the owner while an AppSearch mutation is still in flight.
+    private suspend fun <T> ListenableFuture<T>.awaitMutation(): T = withContext(NonCancellable) { await() }
+
     private suspend fun <T> ListenableFuture<T>.await(): T =
         suspendCancellableCoroutine { continuation ->
             addListener(
@@ -733,10 +754,11 @@ class AppSearchBackedSearchIndexRepository @Inject constructor(
             continuation.invokeOnCancellation { cancel(true) }
         }
 
-    private fun <K, V> AppSearchBatchResult<K, V>.throwIfFailed() {
+    private fun <K, V> AppSearchBatchResult<K, V>.throwIfFailed(ignoreNotFound: Boolean = false) {
         if (isSuccess) return
-        val failure = failures.values.firstOrNull()
-        val message = failure?.errorMessage?.takeIf(String::isNotBlank)
+        val failure = failures.values.firstOrNull { !ignoreNotFound || it.resultCode != AppSearchResult.RESULT_NOT_FOUND }
+            ?: return
+        val message = failure.errorMessage?.takeIf(String::isNotBlank)
             ?: "AppSearch batch operation failed."
         throw IllegalStateException(message)
     }
@@ -744,7 +766,8 @@ class AppSearchBackedSearchIndexRepository @Inject constructor(
     private companion object {
         const val TAG = "LinkNestAppSearch"
         const val APP_SEARCH_DATABASE = "linknest-search"
-        const val APP_SEARCH_STORAGE_DIRECTORY = "appsearch"
+        const val RECONCILIATION_ATTEMPTS = 3
+        const val RECONCILIATION_DELAY_MILLIS = 1_000L
         const val WEBSITE_NAMESPACE = "websites"
         const val AUX_NAMESPACE = "aux"
         const val WEBSITE_SCHEMA = "website_document"

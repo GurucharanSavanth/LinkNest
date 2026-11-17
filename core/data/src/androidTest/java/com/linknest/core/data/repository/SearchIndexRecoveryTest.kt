@@ -11,6 +11,9 @@ import androidx.room.RoomDatabase
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.common.util.concurrent.ListenableFuture
 import com.linknest.core.database.LinkNestDatabase
+import com.linknest.core.common.time.TimeProvider
+import com.linknest.core.data.usecase.SearchUseCase
+import com.linknest.core.network.UrlMetadataFetcher
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Proxy
 import java.util.UUID
@@ -23,6 +26,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -51,6 +55,11 @@ class SearchIndexRecoveryTest {
             } catch (expected: IllegalStateException) {
                 assertTrue(expected.message.orEmpty().contains("injected"))
             }
+            assertTrue(f.repository.search("Link", 20).isEmpty())
+            assertTrue(f.repository.suggestions("Link", 20).isEmpty())
+            assertEquals("Partial namespaces must not be queried", 0, f.indexReads.get())
+            f.nextRetry().second.complete(Unit)
+            f.awaitRepairs()
             assertEquals(setOf(1L, 2L, 3L), f.repository.search("Link", 20).map { it.websiteId }.toSet())
         }
     }
@@ -116,6 +125,9 @@ class SearchIndexRecoveryTest {
                 withTimeout(10_000) { rebuild.join() }
                 assertTrue(rebuild.isCancelled)
             }
+            assertTrue(f.repository.search("Link", 20).isEmpty())
+            f.nextRetry().second.complete(Unit)
+            f.awaitRepairs()
             assertEquals(3, f.repository.search("Link", 20).size)
         }
     }
@@ -205,7 +217,10 @@ class SearchIndexRecoveryTest {
             assertTrue(f.retryDelays.tryReceive().isFailure)
             assertFalse(f.repairScope.coroutineContext[Job]!!.children.any())
             assertEquals("Derived failures must preserve Room", 3, f.database.websiteDao().getAllWebsites().size)
-            // A later explicit use may retry after exhaustion; it does not create an infinite timer loop.
+            // A later read schedules a new bounded repair while returning Room fallback immediately.
+            assertTrue(f.repository.search("Link", 20).isEmpty())
+            f.nextRetry().second.complete(Unit)
+            f.awaitRepairs()
             assertEquals(3, f.repository.search("Link", 20).size)
         }
     }
@@ -239,6 +254,57 @@ class SearchIndexRecoveryTest {
         }
     }
 
+    @Test fun coldReads_returnFallbackWithoutCreatingSession_andCoalesceRepair() = runBlocking {
+        fixture { f ->
+            f.seed(3)
+            val cold = f.newRepository(Dispatchers.Unconfined)
+            coroutineScope {
+                val search = async(start = CoroutineStart.UNDISPATCHED) { cold.search("Link", 20) }
+                val suggestions = async(start = CoroutineStart.UNDISPATCHED) { cold.suggestions("Link", 20) }
+                assertTrue("A cold read must return without awaiting a rebuild", search.isCompleted)
+                assertTrue("Cold suggestions must return without awaiting a rebuild", suggestions.isCompleted)
+                assertTrue(search.await().isEmpty())
+                assertTrue(suggestions.await().isEmpty())
+            }
+            assertEquals(0, f.sessionCreations.get())
+            assertEquals(0, f.indexReads.get())
+            val retry = f.nextRetry()
+            assertTrue("Both reads must share one repair job", f.retryDelays.tryReceive().isFailure)
+            retry.second.complete(Unit)
+            f.awaitRepairs()
+            assertEquals(3, cold.search("Link", 20).size)
+            assertEquals(1, f.sessionCreations.get())
+        }
+    }
+
+    @Test fun readsDuringHeldRebuild_returnRoomResultsBeforeOwnerIsReleased() = runBlocking {
+        fixture { f ->
+            f.seed(3)
+            val index = f.newRepository(Dispatchers.Unconfined)
+            index.warmIndex()
+            coroutineScope {
+                val gate = f.holdNext("putAsync")
+                val rebuild = async(Dispatchers.IO) { index.rebuildIndex() }
+                gate.awaitEntered()
+                try {
+                    val read = async(start = CoroutineStart.UNDISPATCHED) { index.search("Link", 20) }
+                    val suggestions = async(start = CoroutineStart.UNDISPATCHED) { index.suggestions("Link", 20) }
+                    assertTrue("A busy owner must not suspend the read", read.isCompleted)
+                    assertTrue("A busy owner must not suspend suggestions", suggestions.isCompleted)
+                    assertTrue(read.await().isEmpty())
+                    assertTrue(suggestions.await().isEmpty())
+                    assertEquals("Never query an unfinished rebuild", 0, f.indexReads.get())
+                    val results = withTimeout(10_000) { f.searchUseCase(index)("Link", 20) }
+                    assertEquals(setOf(1L, 2L, 3L), results.map { it.websiteId }.toSet())
+                    assertFalse("Room fallback must finish before the rebuild", rebuild.isCompleted)
+                } finally { gate.release() }
+                withTimeout(10_000) { rebuild.await() }
+            }
+            assertEquals(3, index.search("Link", 20).size)
+            assertEquals(1, f.indexReads.get())
+        }
+    }
+
     private suspend fun fixture(block: suspend (Fixture) -> Unit) {
         val f = Fixture()
         try { block(f) } finally { f.close() }
@@ -261,6 +327,7 @@ class SearchIndexRecoveryTest {
         val cancelNextSearch = AtomicBoolean()
         val failPuts = AtomicInteger()
         val putAttempts = AtomicInteger()
+        val indexReads = AtomicInteger()
         val clears = AtomicInteger()
         val sessionCreations = AtomicInteger()
         val sessionCloses = AtomicInteger()
@@ -268,7 +335,7 @@ class SearchIndexRecoveryTest {
         @Volatile private var held: Pair<String, Gate>? = null
         val repository = newRepository()
 
-        fun newRepository() = AppSearchBackedSearchIndexRepository(context, database, Dispatchers.IO,
+        fun newRepository(dispatcher: CoroutineDispatcher = Dispatchers.IO) = AppSearchBackedSearchIndexRepository(context, database, dispatcher,
             reconciliationScope = repairScope, retryDelay = { delay ->
                 val permit = CompletableDeferred<Unit>()
                 retryDelays.send(delay to permit)
@@ -280,6 +347,7 @@ class SearchIndexRecoveryTest {
                 LocalStorage.SearchContext.Builder(context, name).build(),
             ).get(10, TimeUnit.SECONDS).also { backends += it }
             Proxy.newProxyInstance(AppSearchSession::class.java.classLoader, arrayOf(AppSearchSession::class.java)) { _, method, args ->
+                if (method.name == "search") indexReads.incrementAndGet()
                 if (method.name == "search" && cancelNextSearch.compareAndSet(true, false)) throw CancellationException("injected read cancellation")
                 if (method.name == "close") sessionCloses.incrementAndGet()
                 if (method.name == "putAsync") putAttempts.incrementAndGet()
@@ -302,6 +370,15 @@ class SearchIndexRecoveryTest {
                     gate.second.future
                 } else result
             } as AppSearchSession
+        }
+
+        fun searchUseCase(index: SearchIndexRepository): SearchUseCase {
+            val clock = object : TimeProvider { override fun now() = 1L }
+            val websites = OfflineFirstWebsiteRepository(database, database.websiteDao(), database.iconCacheDao(),
+                database.tagDao(), UrlMetadataFetcher(Dispatchers.IO), clock, index, Dispatchers.Default)
+            val categories = OfflineFirstCategoryRepository(database, database.categoryDao(), database.websiteDao(),
+                database.iconCacheDao(), database.tagDao(), clock, index, Dispatchers.Default)
+            return SearchUseCase(websites, index, categories)
         }
 
         fun holdNext(method: String) = Gate().also { held = method to it }

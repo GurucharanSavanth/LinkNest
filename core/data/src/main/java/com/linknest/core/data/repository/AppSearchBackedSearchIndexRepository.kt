@@ -127,6 +127,26 @@ class AppSearchBackedSearchIndexRepository @Inject constructor(
             }
         }
 
+    private suspend fun <T> readIndex(fallback: T, block: suspend (AppSearchSession) -> T): T =
+        withContext(ioDispatcher) {
+            // A busy owner is already maintaining the index. Let callers use Room without waiting.
+            if (!indexMutex.tryLock()) return@withContext fallback
+            try {
+                if (!hasWarmedIndex) {
+                    scheduleReconciliationLocked()
+                    return@withContext fallback
+                }
+                block(checkNotNull(searchSession))
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                indexFailedLocked(failure)
+                fallback
+            } finally {
+                indexMutex.unlock()
+            }
+        }
+
     private suspend fun mutateIndex(block: suspend (AppSearchSession) -> Unit) = withIndex(Unit) { session ->
         hasWarmedIndex = false
         block(session)
@@ -139,6 +159,10 @@ class AppSearchBackedSearchIndexRepository @Inject constructor(
         if (throwable !is CancellationException) {
             Log.w(TAG, "Search index operation failed; background reconciliation scheduled.", throwable)
         }
+        scheduleReconciliationLocked()
+    }
+
+    private fun scheduleReconciliationLocked() {
         if (reconciliationJob?.isActive == true) return
         val scope = reconciliationScope ?: CoroutineScope(SupervisorJob() + ioDispatcher).also {
             reconciliationScope = it
@@ -169,9 +193,9 @@ class AppSearchBackedSearchIndexRepository @Inject constructor(
     override suspend fun search(
         query: String,
         limit: Int,
-    ): List<SearchResultItem> = withIndex(emptyList<SearchResultItem>()) { session ->
+    ): List<SearchResultItem> = readIndex(emptyList<SearchResultItem>()) { session ->
         val sanitized = query.trim()
-        if (sanitized.isBlank()) return@withIndex emptyList()
+        if (sanitized.isBlank()) return@readIndex emptyList()
 
         val searchResults = session.search(
             sanitized,
@@ -200,9 +224,9 @@ class AppSearchBackedSearchIndexRepository @Inject constructor(
     override suspend fun suggestions(
         query: String,
         limit: Int,
-    ): List<SearchSuggestion> = withIndex(emptyList<SearchSuggestion>()) { session ->
+    ): List<SearchSuggestion> = readIndex(emptyList<SearchSuggestion>()) { session ->
         val sanitized = query.trim()
-        if (sanitized.isBlank()) return@withIndex emptyList()
+        if (sanitized.isBlank()) return@readIndex emptyList()
 
         val searchResults = session.search(
             sanitized,

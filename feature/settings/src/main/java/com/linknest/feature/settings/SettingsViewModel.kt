@@ -230,10 +230,13 @@ class SettingsViewModel @Inject constructor(
             try {
                 val outcomes = reconcileRecoveryUseCase()
                 val unknown = outcomes.count { it.outcome == RecoveryOutcome.UNKNOWN }
+                val confirmed = outcomes.size - unknown
                 val recovery = backupFileManager.getRecoveryBackupInfo()
                 _uiState.update { it.copy(
                     recoveryInfo = recovery,
-                    userMessage = appContext.getString(R.string.settings_recovery_reconciliation_result, outcomes.size - unknown, unknown),
+                    userMessage = appContext.getString(R.string.settings_recovery_reconciliation_result,
+                        appContext.resources.getQuantityString(R.plurals.settings_recovery_confirmed_count, confirmed, confirmed),
+                        appContext.resources.getQuantityString(R.plurals.settings_recovery_protected_count, unknown, unknown)),
                 ) }
             } catch (cancelled: CancellationException) {
                 throw cancelled

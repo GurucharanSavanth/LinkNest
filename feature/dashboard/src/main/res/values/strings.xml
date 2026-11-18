@@ -19,4 +19,8 @@
     <string name="dashboard_reorder_inside_category">"Reorder inside category"</string>
     <string name="dashboard_save_category">"Save category"</string>
     <string name="dashboard_unpin_website">"Unpin website"</string>
+    <plurals name="dashboard_website_count">
+        <item quantity="one">%1$d website</item>
+        <item quantity="other">%1$d websites</item>
+    </plurals>
 </resources>

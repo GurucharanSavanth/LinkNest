@@ -8,7 +8,7 @@
     <string name="settings_backup_restore">"Backup &amp; Restore"</string>
     <string name="settings_cancel">"Cancel"</string>
     <string name="settings_change">"Change"</string>
-    <string name="settings_checking">"Checking..."</string>
+    <string name="settings_checking">Checking&#8230;</string>
     <string name="settings_clear">"Clear"</string>
     <string name="settings_comfortable">"Comfortable"</string>
     <string name="settings_compact">"Compact"</string>
@@ -32,10 +32,10 @@
     <string name="settings_periodic_health_checks_in_background_with_network_constraints">"Periodic health checks in background with network constraints."</string>
     <string name="settings_preview_recovery">"Preview recovery (%1$s)"</string>
     <string name="settings_replace_library">"Replace library"</string>
-    <string name="settings_replace_preview">"Replace %1$d websites with %2$d websites in %3$d categories. Portable images: %4$d; unavailable custom images: %5$d. Your previous library will be retained for recovery."</string>
+    <string name="settings_replace_preview">"Replace %1$s with %2$s in %3$s. Portable images: %4$d; unavailable custom images: %5$d. Your previous library will be retained for recovery."</string>
     <string name="settings_replace_title">"Replace library?"</string>
     <string name="settings_restore_category">"Restore %1$s"</string>
-    <string name="settings_restored_counts">"Restored %1$d websites in %2$d categories."</string>
+    <string name="settings_restored_counts">"Restored %1$s in %2$s."</string>
     <string name="settings_restoring_data">"Restoring data…"</string>
     <string name="settings_run_health_check">"Run health check"</string>
     <string name="settings_saved">"Saved"</string>
@@ -44,7 +44,23 @@
     <string name="settings_tile_density">"Tile Density"</string>
     <string name="settings_tools">"Tools"</string>
     <string name="settings_reconcile_recovery">Reconcile interrupted restores</string>
-    <string name="settings_reconciling_recovery">Reconciling interrupted restores?</string>
-    <string name="settings_recovery_reconciliation_result">%1$d recovery outcomes confirmed; %2$d remain protected because outcome is unknown.</string>
+    <string name="settings_reconciling_recovery">Reconciling interrupted restores&#8230;</string>
+    <string name="settings_recovery_reconciliation_result">%1$s; %2$s</string>
+    <plurals name="settings_recovery_confirmed_count">
+        <item quantity="one">%1$d recovery outcome confirmed</item>
+        <item quantity="other">%1$d recovery outcomes confirmed</item>
+    </plurals>
+    <plurals name="settings_recovery_protected_count">
+        <item quantity="one">%1$d outcome remains protected because it is unknown.</item>
+        <item quantity="other">%1$d outcomes remain protected because they are unknown.</item>
+    </plurals>
     <string name="settings_recovery_reconciliation_failed">Recovery reconciliation failed.</string>
+    <plurals name="settings_website_count">
+        <item quantity="one">%1$d website</item>
+        <item quantity="other">%1$d websites</item>
+    </plurals>
+    <plurals name="settings_category_count">
+        <item quantity="one">%1$d category</item>
+        <item quantity="other">%1$d categories</item>
+    </plurals>
 </resources>

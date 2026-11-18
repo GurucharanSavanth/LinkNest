@@ -68,6 +68,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
@@ -594,7 +595,7 @@ private fun CategoryHeader(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(category.name, fontWeight = FontWeight.SemiBold)
-                        Text("${category.websiteCount} websites", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(pluralStringResource(R.plurals.dashboard_website_count, category.websiteCount, category.websiteCount), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 if (focusedCategoryId == category.id) {

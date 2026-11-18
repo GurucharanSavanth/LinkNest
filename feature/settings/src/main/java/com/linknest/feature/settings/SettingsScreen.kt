@@ -42,6 +42,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -84,7 +85,16 @@ fun SettingsRoute(
         AlertDialog(
             onDismissRequest = viewModel::resetImportStatus,
             title = { Text(stringResource(R.string.settings_replace_title)) },
-            text = { Text(stringResource(R.string.settings_replace_preview, preview.currentCount, preview.snapshot.websites.size, preview.snapshot.categories.size, preview.snapshot.assets.size, unavailableImages)) },
+            text = {
+                Text(stringResource(
+                    R.string.settings_replace_preview,
+                    pluralStringResource(R.plurals.settings_website_count, preview.currentCount, preview.currentCount),
+                    pluralStringResource(R.plurals.settings_website_count, preview.snapshot.websites.size, preview.snapshot.websites.size),
+                    pluralStringResource(R.plurals.settings_category_count, preview.snapshot.categories.size, preview.snapshot.categories.size),
+                    preview.snapshot.assets.size,
+                    unavailableImages,
+                ))
+            },
             confirmButton = { TextButton(onClick = viewModel::confirmImport) { Text(stringResource(R.string.settings_replace_library)) } },
             dismissButton = { TextButton(onClick = viewModel::resetImportStatus) { Text(stringResource(R.string.settings_cancel)) } },
         )
@@ -456,7 +466,11 @@ private fun BackupRestorePanel(
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = Color(0xFF4CAF50), modifier = Modifier.size(20.dp))
                     Text(
-                        stringResource(R.string.settings_restored_counts, status.websiteCount, status.categoryCount),
+                        stringResource(
+                            R.string.settings_restored_counts,
+                            pluralStringResource(R.plurals.settings_website_count, status.websiteCount, status.websiteCount),
+                            pluralStringResource(R.plurals.settings_category_count, status.categoryCount, status.categoryCount),
+                        ),
                         style = MaterialTheme.typography.bodyMedium,
                         color = Color(0xFF4CAF50),
                     )

@@ -125,7 +125,7 @@ class BackupBoundaryTest {
             orphan.writeText("owned unreferenced fixture")
             withContext(Dispatchers.IO) {
                 f.database.openHelper.writableDatabase.execSQL(
-                    "UPDATE website_entries SET custom_icon_uri=? WHERE id=?", arrayOf(androidUri, website.id),
+                    "UPDATE website_entries SET custom_icon_uri=? WHERE id=?", arrayOf<Any>(androidUri, website.id),
                 )
             }
             val exported = f.repository.exportSnapshot()

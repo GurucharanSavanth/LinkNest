@@ -3,6 +3,7 @@ package com.linknest.app.widget
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
+import android.os.Bundle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -21,9 +22,11 @@ class QuickAddWidgetProvider : AppWidgetProvider() {
                     context = context,
                     appWidgetManager = appWidgetManager,
                     appWidgetIds = appWidgetIds,
-                ) {
+                ) { widgetId ->
                     WidgetRemoteViewsFactory.buildQuickAddWidget(
                         context = context,
+                        minHeightDp = appWidgetManager.getAppWidgetOptions(widgetId)
+                            .getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 72),
                         title = context.getString(com.linknest.app.R.string.widget_quick_add_title),
                         body = context.getString(com.linknest.app.R.string.widget_quick_add_body),
                     )
@@ -36,6 +39,15 @@ class QuickAddWidgetProvider : AppWidgetProvider() {
                 pendingResult.finish()
             }
         }
+    }
+
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: Bundle,
+    ) {
+        onUpdate(context, appWidgetManager, intArrayOf(appWidgetId))
     }
 
 }

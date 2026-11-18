@@ -3,6 +3,7 @@ package com.linknest.app.widget
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
+import android.os.Bundle
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,9 +28,11 @@ class RecentLinksWidgetProvider : AppWidgetProvider() {
                     context = context,
                     appWidgetManager = appWidgetManager,
                     appWidgetIds = appWidgetIds,
-                ) {
+                ) { widgetId ->
                     WidgetRemoteViewsFactory.buildCollectionWidget(
                         context = context,
+                        minHeightDp = appWidgetManager.getAppWidgetOptions(widgetId)
+                            .getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 120),
                         title = context.getString(com.linknest.app.R.string.widget_recent_title),
                         subtitle = context.getString(com.linknest.app.R.string.widget_recent_subtitle),
                         emptyText = context.getString(com.linknest.app.R.string.widget_recent_empty),
@@ -45,6 +48,15 @@ class RecentLinksWidgetProvider : AppWidgetProvider() {
                 pendingResult.finish()
             }
         }
+    }
+
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: Bundle,
+    ) {
+        onUpdate(context, appWidgetManager, intArrayOf(appWidgetId))
     }
 
 }

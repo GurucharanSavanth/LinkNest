@@ -3,6 +3,7 @@ package com.linknest.app.widget
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
+import android.os.Bundle
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,9 +28,11 @@ class CategoryLinksWidgetProvider : AppWidgetProvider() {
                     context = context,
                     appWidgetManager = appWidgetManager,
                     appWidgetIds = appWidgetIds,
-                ) {
+                ) { widgetId ->
                     WidgetRemoteViewsFactory.buildCollectionWidget(
                         context = context,
+                        minHeightDp = appWidgetManager.getAppWidgetOptions(widgetId)
+                            .getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 120),
                         title = snapshot.categoryName.ifBlank {
                             context.getString(com.linknest.app.R.string.widget_category_title)
                         },
@@ -47,6 +50,15 @@ class CategoryLinksWidgetProvider : AppWidgetProvider() {
                 pendingResult.finish()
             }
         }
+    }
+
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: Bundle,
+    ) {
+        onUpdate(context, appWidgetManager, intArrayOf(appWidgetId))
     }
 
 }

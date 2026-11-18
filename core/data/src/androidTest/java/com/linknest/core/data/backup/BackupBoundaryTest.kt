@@ -24,6 +24,25 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class BackupBoundaryTest {
+    @Test fun portableImageImportsIntoDifferentPackageWithoutSourceGrant() = runBlocking {
+        org.junit.Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("portableAction") == "import")
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        assertNotEquals("com.linknest.app", context.packageName)
+        val payload = File(context.getExternalFilesDir(null), "portable-crossinstall.json").readText()
+        val snapshot = BackupSerializer().deserialize(payload)
+        assertEquals(1, snapshot.assets.size)
+        assertNull(snapshot.websites.single().customIconUri)
+        fixture { destination ->
+            destination.repository.importSnapshot(snapshot)
+            destination.reopen()
+            val website = destination.database.websiteDao().getAllWebsites().single()
+            assertEquals(com.linknest.core.model.IconSource.CUSTOM, website.chosenIconSource)
+            val imported = File(URI(website.customIconUri!!))
+            assertEquals(File(destination.owned, "backup-media").canonicalFile, requireNotNull(imported.parentFile).canonicalFile)
+            assertArrayEquals(Base64.getDecoder().decode(snapshot.assets.single().data), imported.readBytes())
+        }
+    }
+
     @Test fun preferenceAndIndexFailuresReportCommittedReplacement() = runBlocking {
         fixture { f ->
             f.preferenceFailure = IOException("injected preferences failure")
@@ -87,6 +106,34 @@ class BackupBoundaryTest {
             assertTrue(File(f.owned, "backup-media").listFiles().orEmpty().isEmpty())
             val recovered = BackupSerializer().deserialize(BackupSerializer().serialize(before).payload)
             f.repository.importSnapshot(recovered)
+            f.reopen()
+            assertEquals(before.assets, f.repository.exportSnapshot().assets)
+        }
+    }
+
+    @Test fun exportPreservesOwnedImageReferencedByEquivalentAndroidUri() = runBlocking {
+        fixture { f ->
+            f.addCustomImage()
+            val before = f.repository.exportSnapshot()
+            f.repository.importSnapshot(before)
+            val website = f.database.websiteDao().getAllWebsites().single()
+            val imported = File(URI(requireNotNull(website.customIconUri)))
+            val androidUri = android.net.Uri.fromFile(imported).toString()
+            assertNotEquals("Fixture must use equivalent URI spellings", imported.toURI().toString(), androidUri)
+            val expectedBytes = imported.readBytes()
+            val orphan = File(requireNotNull(imported.parentFile), "asset-${UUID.randomUUID()}.image")
+            orphan.writeText("owned unreferenced fixture")
+            withContext(Dispatchers.IO) {
+                f.database.openHelper.writableDatabase.execSQL(
+                    "UPDATE website_entries SET custom_icon_uri=? WHERE id=?", arrayOf(androidUri, website.id),
+                )
+            }
+            val exported = f.repository.exportSnapshot()
+            assertTrue("Referenced image must survive export cleanup", imported.exists())
+            assertArrayEquals(expectedBytes, imported.readBytes())
+            assertEquals(before.assets, exported.assets)
+            assertEquals(0, exported.omittedCustomImages)
+            assertFalse("Unreferenced owned image must still be cleaned", orphan.exists())
             f.reopen()
             assertEquals(before.assets, f.repository.exportSnapshot().assets)
         }

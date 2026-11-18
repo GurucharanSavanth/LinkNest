@@ -83,8 +83,16 @@ class BackupMediaStore @Inject constructor(
     }
 
     suspend fun removeUnreferenced(referencedUris: Set<String>) = withContext(ioDispatcher) {
+        val ownedDirectory = directory.canonicalFile
+        val referencedFiles = referencedUris.mapNotNull { source ->
+            runCatching {
+                val uri = URI(source)
+                if (uri.scheme != "file") return@runCatching null
+                File(uri).canonicalFile.takeIf { it.parentFile == ownedDirectory }
+            }.getOrNull()
+        }.toSet()
         directory.listFiles().orEmpty().filter { it.name.matches(Regex("asset-[a-f0-9-]{36}\\.image")) }
-            .filter { it.toURI().toString() !in referencedUris }.forEach { it.delete() }
+            .filter { it.canonicalFile !in referencedFiles }.forEach { it.delete() }
     }
 
     private fun inspect(bytes: ByteArray): Pair<String, Long> {

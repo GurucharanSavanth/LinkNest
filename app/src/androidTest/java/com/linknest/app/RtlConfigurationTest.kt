@@ -10,6 +10,7 @@ import androidx.test.filters.SdkSuppress
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import com.linknest.app.testing.visibleTextNode
 
 @SdkSuppress(minSdkVersion = 33)
 class RtlConfigurationTest {
@@ -28,10 +29,11 @@ class RtlConfigurationTest {
                 }
                 val deadline = android.os.SystemClock.uptimeMillis() + 10_000
                 while (instrumentation.uiAutomation.rootInActiveWindow
-                        ?.findAccessibilityNodeInfosByText("Inbox").isNullOrEmpty() &&
+                        ?.visibleTextNode("Inbox") == null &&
                     android.os.SystemClock.uptimeMillis() < deadline) {
                     android.os.SystemClock.sleep(100)
                 }
+                org.junit.Assert.assertNotNull("Dashboard must finish rendering", instrumentation.uiAutomation.rootInActiveWindow?.visibleTextNode("Inbox"))
                 val screenshot = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
                 try {
                     File(context.getExternalFilesDir(null), "qa-rtl.png").outputStream().use {

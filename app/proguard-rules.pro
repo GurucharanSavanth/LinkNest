@@ -62,12 +62,8 @@
 # Javax inject
 -dontwarn javax.inject.**
 
-# Keep app model classes used in backup serialization
--keep class com.linknest.core.data.model.** { *; }
--keep class com.linknest.core.model.** { *; }
+# Backup JSON is written explicitly; only enum names are persisted by converters/serialization.
+-keep enum com.linknest.core.model.** { *; }
 
 # Keep Hilt worker factory entries
 -keep class * extends dagger.hilt.android.internal.managers.** { *; }
-
-# Prevent removing unused interface implementations
--keep interface com.linknest.core.data.repository.** { *; }

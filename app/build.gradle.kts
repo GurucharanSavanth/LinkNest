@@ -33,6 +33,13 @@ android {
         }
         debug {
             isMinifyEnabled = false
+            isPseudoLocalesEnabled = true
+        }
+        create("optimizedQa") {
+            initWith(getByName("release"))
+            matchingFallbacks += "release"
+            isProfileable = true
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
@@ -89,11 +96,14 @@ dependencies {
     testImplementation(libs.junit)
 
     androidTestImplementation(platform(libs.androidx.compose.bom))
+    // Assert fixture cleanup without exposing database APIs to production app code.
+    androidTestImplementation(project(":core:database"))
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.compose.ui.test.junit4.accessibility)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
+    debugImplementation(project(":core:database"))
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

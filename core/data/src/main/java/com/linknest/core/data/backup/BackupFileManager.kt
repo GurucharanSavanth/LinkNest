@@ -77,6 +77,9 @@ class BackupFileManager @Inject constructor(
             atomic.failWrite(output)
             throw failure
         }
+        // AtomicFile can log a failed rename without throwing; verify the published base file.
+        val published = atomic.openRead().bufferedReader(Charsets.UTF_8).use { it.readBackupText() }
+        if (published != pkg.payload) throw java.io.IOException("Staged backup publication could not be verified.")
         return file
     }
 

@@ -24,6 +24,50 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class BackupBoundaryTest {
+    @androidx.test.filters.SdkSuppress(minSdkVersion = 30) // Exercises AtomicFile's .new publication path.
+    @Test fun stagedExportRejectsUnpublishedWritesAndPreservesPriorExport() = runBlocking {
+        fixture { f ->
+            val original = BackupSerializer().serialize(f.repository.exportSnapshot())
+            val staged = f.fileManager.stageBackup(original)
+            val blockedNew = File(staged.path + ".new").apply { check(mkdir()) }
+            val sentinel = File(blockedNew, "owned-blocker").apply { writeText("preserve fixture") }
+            val replacement = BackupSerializer().serialize(f.repository.exportSnapshot().copy(appVersion = "replacement"))
+            assertThrows(IOException::class.java) { f.fileManager.stageBackup(replacement) }
+            assertEquals(original.payload, staged.readText())
+            assertEquals("preserve fixture", sentinel.readText())
+        }
+        fixture { f ->
+            val directory = File(f.owned, "backup-staging").apply { check(mkdir()) }
+            val blockedBase = File(directory, "latest-backup.json").apply { check(mkdir()) }
+            val sentinel = File(blockedBase, "owned-blocker").apply { writeText("preserve fixture") }
+            val pkg = BackupSerializer().serialize(f.repository.exportSnapshot())
+            assertThrows(IOException::class.java) { f.fileManager.stageBackup(pkg) }
+            assertEquals("preserve fixture", sentinel.readText())
+        }
+    }
+
+    @Test fun imagePublicationFailurePreservesOriginalLibraryAcrossReopen() = runBlocking {
+        fixture { f ->
+            val originalImage = f.addCustomImage()
+            val originalBytes = originalImage.readBytes()
+            val before = f.repository.exportSnapshot()
+            val blocked = File(f.owned, "backup-media").apply { writeText("owned publication blocker") }
+            val incoming = before.copy(websites = before.websites.map { it.copy(title = "Replacement") })
+            try {
+                f.repository.importSnapshot(incoming)
+                fail("Blocked image publication must fail before replacing Room records")
+            } catch (failure: BackupRestoreException) {
+                assertTrue(failure.cause is IllegalStateException)
+                assertTrue(requireNotNull(failure.message).contains("Original data was preserved"))
+            }
+            f.reopen()
+            val after = f.repository.exportSnapshot()
+            assertEquals(before.copy(exportedAt = after.exportedAt), after)
+            assertArrayEquals(originalBytes, originalImage.readBytes())
+            assertEquals("owned publication blocker", blocked.readText())
+        }
+    }
+
     @Test fun portableImageImportsIntoDifferentPackageWithoutSourceGrant() = runBlocking {
         org.junit.Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("portableAction") == "import")
         val context = InstrumentationRegistry.getInstrumentation().targetContext

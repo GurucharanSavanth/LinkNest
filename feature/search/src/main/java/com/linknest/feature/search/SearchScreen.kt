@@ -53,6 +53,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.focus.FocusRequester
@@ -352,10 +355,12 @@ private fun SmartCollectionRow(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             SearchSmartCollection.entries.forEach { collection ->
+                val collectionDescription = stringResource(R.string.search_smart_collection_description, collection.label)
                 FilterChip(
+                    modifier = Modifier.semantics { contentDescription = collectionDescription },
                     selected = activeCollection == collection,
                     onClick = { onApplySmartCollection(collection) },
-                    label = { Text(collection.label) },
+                    label = { Text(collection.label, modifier = Modifier.clearAndSetSemantics {}) },
                     leadingIcon = {
                         Icon(
                             imageVector = when (collection) {

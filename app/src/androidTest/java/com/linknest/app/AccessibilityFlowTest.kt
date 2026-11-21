@@ -37,6 +37,19 @@ class AccessibilityFlowTest {
         } else {
             filters.performClick()
         }
+        val pinnedCollection = compose.onNodeWithContentDescription("Pinned collection")
+        val pinnedFlag = compose.onNodeWithText("Pinned")
+        pinnedCollection.assertHasClickAction().assertIsNotSelected()
+        pinnedFlag.assertHasClickAction().assertIsNotSelected()
+        pinnedFlag.performSemanticsAction(SemanticsActions.OnClick) { it() }
+        pinnedFlag.assertIsSelected()
+        pinnedCollection.assertIsNotSelected()
+        pinnedFlag.performSemanticsAction(SemanticsActions.OnClick) { it() }
+        pinnedFlag.assertIsNotSelected()
+        pinnedCollection.performSemanticsAction(SemanticsActions.OnClick) { it() }
+        pinnedCollection.assertIsSelected()
+        pinnedFlag.assertIsSelected().performSemanticsAction(SemanticsActions.OnClick) { it() }
+        pinnedCollection.assertIsNotSelected()
         checkAccessibility()
         compose.onNodeWithContentDescription("Go back").performClick()
         compose.onNodeWithContentDescription("Settings").performClick()

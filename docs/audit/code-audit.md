@@ -1,5 +1,7 @@
 # Code Audit
 
+Historical report. See the [current audit index](README.md) and [remaining work ledger](remaining-work-status.md) for superseding implementations and evidence.
+
 Date: 2026-05-06
 
 ## Verified Issues Addressed

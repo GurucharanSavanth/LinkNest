@@ -1,5 +1,7 @@
 # Ponytail Debt Ledger (2026-07-20)
 
+Historical report. See the [current audit index](README.md) and [remaining work ledger](remaining-work-status.md) for resolved DNS, test, resource, and state claims.
+
 Deferred shortcuts and known gaps left after the audit/fix pass. Each: what, why deferred, impact, trigger to address.
 
 ## Security residuals

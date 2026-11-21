@@ -1,5 +1,7 @@
 # LinkNest
 
+Current quality evidence and remaining limitations: [audit index](docs/audit/README.md), [remaining work](docs/audit/remaining-work-status.md), and [backup format/recovery policy](docs/backup-format.md).
+
 LinkNest is an Android app for collecting, organizing, searching, and maintaining a personal library of websites.
 
 It is built as a modular offline-first project with Jetpack Compose, Room, DataStore, Hilt, WorkManager, and AppSearch. The app focuses on fast local organization, metadata-aware capture, health monitoring, and lightweight maintenance workflows for saved links.

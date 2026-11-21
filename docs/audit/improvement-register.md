@@ -1,5 +1,7 @@
 # LinkNest Improvement Register (2026-07-20)
 
+Historical report. See the [current audit index](README.md) and [remaining work ledger](remaining-work-status.md); listed findings are not automatically current defects.
+
 Baseline: `main` @ d2a691f. Build/test/lint green (13 tests, 0 fail; 101 lint warnings, 0 errors).
 Env: OpenJDK 21, Gradle 8.13, AGP 8.13.0, Kotlin 2.2.10.
 

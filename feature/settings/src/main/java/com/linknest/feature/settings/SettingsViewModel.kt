@@ -120,7 +120,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             updateBackupFolderUriUseCase(uri)
             _uiState.update {
-                it.copy(userMessage = if (uri != null) "Backup folder set." else "Backup folder cleared.")
+                it.copy(userMessage = if (uri != null) appContext.getString(R.string.settings_folder_set) else appContext.getString(R.string.settings_folder_cleared))
             }
         }
     }
@@ -141,15 +141,15 @@ class SettingsViewModel @Inject constructor(
                     // Auto-save to the user's chosen folder; fall back to the manual picker on failure.
                     when (val result = backupFileManager.writeToFolder(appContext.contentResolver, folderUri.toUri(), pkg)) {
                         is WriteResult.Ok -> _uiState.update {
-                            it.copy(exportStatus = ExportStatus.Saved(result.uriLabel), stagedInfo = info, userMessage = "Backup saved to your chosen folder.")
+                            it.copy(exportStatus = ExportStatus.Saved(result.uriLabel), stagedInfo = info, userMessage = appContext.getString(R.string.settings_saved_to_folder))
                         }
                         is WriteResult.Error -> _uiState.update {
-                            it.copy(exportStatus = ExportStatus.ReadyToSave(pkg), stagedInfo = info, userMessage = "${result.message} Choose where to save.")
+                            it.copy(exportStatus = ExportStatus.ReadyToSave(pkg), stagedInfo = info, userMessage = appContext.getString(R.string.settings_choose_destination, result.message))
                         }
                     }
                 } else {
                     _uiState.update {
-                        it.copy(exportStatus = ExportStatus.ReadyToSave(pkg), stagedInfo = info, userMessage = "Backup ready. Choose where to save.")
+                        it.copy(exportStatus = ExportStatus.ReadyToSave(pkg), stagedInfo = info, userMessage = appContext.getString(R.string.settings_backup_ready))
                     }
                 }
             } catch (cancelled: CancellationException) {
@@ -157,8 +157,8 @@ class SettingsViewModel @Inject constructor(
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
-                        exportStatus = ExportStatus.Failed(e.message ?: "Export failed."),
-                        userMessage = e.message ?: "Export failed.",
+                        exportStatus = ExportStatus.Failed(e.message ?: appContext.getString(R.string.settings_export_failed)),
+                        userMessage = e.message ?: appContext.getString(R.string.settings_export_failed),
                     )
                 }
             }
@@ -173,7 +173,7 @@ class SettingsViewModel @Inject constructor(
             _uiState.update {
                 it.copy(
                     exportStatus = ExportStatus.Idle,
-                    userMessage = "Export expired before saving. The last backup is staged — export again or use \"Import last export\".",
+                    userMessage = appContext.getString(R.string.settings_export_expired),
                 )
             }
             return
@@ -184,7 +184,7 @@ class SettingsViewModel @Inject constructor(
                 is WriteResult.Ok -> _uiState.update {
                     it.copy(
                         exportStatus = ExportStatus.Saved(result.uriLabel),
-                        userMessage = "Backup saved successfully.",
+                        userMessage = appContext.getString(R.string.settings_save_success),
                     )
                 }
                 is WriteResult.Error -> _uiState.update {
@@ -202,7 +202,7 @@ class SettingsViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 exportStatus = ExportStatus.Idle,
-                userMessage = "Save cancelled. Backup is staged — click \"Import last export\" to restore.",
+                userMessage = appContext.getString(R.string.settings_save_cancelled),
             )
         }
     }
@@ -277,7 +277,7 @@ class SettingsViewModel @Inject constructor(
     fun onImportFromText(text: String) {
         if (uiState.value.isBackupBusy) return
         if (text.isBlank()) {
-            _uiState.update { it.copy(userMessage = "Backup text is empty.") }
+            _uiState.update { it.copy(userMessage = appContext.getString(R.string.settings_backup_empty)) }
             return
         }
         _uiState.update { it.copy(importStatus = ImportStatus.Running, userMessage = null) }
@@ -295,7 +295,7 @@ class SettingsViewModel @Inject constructor(
         } catch (cancelled: kotlinx.coroutines.CancellationException) {
             throw cancelled
         } catch (failure: Exception) {
-            _uiState.update { it.copy(importStatus = ImportStatus.Failed(failure.message ?: "Invalid backup.")) }
+            _uiState.update { it.copy(importStatus = ImportStatus.Failed(failure.message ?: appContext.getString(R.string.settings_backup_invalid))) }
         }
     }
 
@@ -312,29 +312,29 @@ class SettingsViewModel @Inject constructor(
                 val summary = importDataUseCase(preview.snapshot, recoveryGeneration = stagedRecovery.name)
                 _uiState.update { it.copy(
                     importStatus = ImportStatus.Success(summary.importedWebsites, summary.importedCategories),
-                    userMessage = (listOf("Restore complete. Previous library is retained for recovery.") + summary.warnings).joinToString("\n"),
+                    userMessage = (listOf(appContext.getString(R.string.settings_restore_complete)) + summary.warnings).joinToString("\n"),
                 ) }
                 try {
                     backupFileManager.completeRecovery(stagedRecovery)
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (failure: Exception) {
-                    _uiState.update { it.copy(userMessage = "Restore complete. Recovery remains protected: ${failure.message}") }
+                    _uiState.update { it.copy(userMessage = appContext.getString(R.string.settings_restore_complete_protected, failure.localizedMessage.orEmpty())) }
                 }
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
                 throw cancelled
             } catch (failure: com.linknest.core.data.repository.BackupRestoreException) {
-                var message = failure.message ?: "Restore failed before replacement."
+                var message = failure.message ?: appContext.getString(R.string.settings_restore_before_commit_failed)
                 try {
                     recoveryFile?.let(backupFileManager::completeRecovery)
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (cleanupFailure: Exception) {
-                    message += " Recovery remains protected: ${cleanupFailure.message}"
+                    message = appContext.getString(R.string.settings_restore_failed_protected, message, cleanupFailure.localizedMessage.orEmpty())
                 }
                 _uiState.update { it.copy(importStatus = ImportStatus.Failed(message)) }
             } catch (failure: Exception) {
-                _uiState.update { it.copy(importStatus = ImportStatus.Failed(failure.message ?: "Restore failed.")) }
+                _uiState.update { it.copy(importStatus = ImportStatus.Failed(failure.message ?: appContext.getString(R.string.settings_restore_failed))) }
             }
         }
     }
@@ -363,14 +363,18 @@ class SettingsViewModel @Inject constructor(
                 is ActionResult.Success -> _uiState.update {
                     it.copy(
                         isRunningHealthCheck = false,
-                        healthSummary = "Checked ${result.value.checkedCount} links — OK ${result.value.okCount}, issues ${result.value.deadCount + result.value.timeoutCount + result.value.blockedCount}.",
+                        healthSummary = appContext.getString(
+                            R.string.settings_health_overview,
+                            checkedLinksLabel(result.value.checkedCount), result.value.okCount,
+                            result.value.deadCount + result.value.timeoutCount + result.value.blockedCount,
+                        ),
                         latestHealthReport = result.value.items,
                     )
                 }
                 is ActionResult.PartialSuccess -> _uiState.update {
                     it.copy(
                         isRunningHealthCheck = false,
-                        healthSummary = "Checked ${result.value.checkedCount} links with warnings.",
+                        healthSummary = appContext.getString(R.string.settings_health_warnings, checkedLinksLabel(result.value.checkedCount)),
                         latestHealthReport = result.value.items,
                         userMessage = result.issues.firstOrNull()?.message,
                     )
@@ -381,6 +385,9 @@ class SettingsViewModel @Inject constructor(
             }
         }
     }
+
+    private fun checkedLinksLabel(count: Int): String =
+        appContext.resources.getQuantityString(R.plurals.settings_checked_links, count, count)
 
     fun onMessageConsumed() {
         _uiState.update { it.copy(userMessage = null) }

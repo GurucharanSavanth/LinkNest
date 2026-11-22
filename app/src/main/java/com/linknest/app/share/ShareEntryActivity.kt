@@ -29,6 +29,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
+import androidx.compose.ui.res.stringResource
+import com.linknest.app.R
 import com.linknest.app.MainActivity
 import com.linknest.core.action.ActionResult
 import com.linknest.core.action.model.ShareCapturePipelineInput
@@ -73,7 +75,7 @@ class ShareEntryActivity : ComponentActivity() {
         val sharedText = extractSharedText(intent)
         if (sharedText.isBlank()) {
             uiState = ShareCaptureUiState.Error(
-                message = "No usable website URL was found in the shared content.",
+                message = getString(R.string.share_missing),
             )
             return
         }
@@ -166,13 +168,13 @@ private fun ShareEntryScreen(
                             CircularProgressIndicator()
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
-                                text = "Capturing shared link",
+                                text = stringResource(R.string.share_loading),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold,
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "LinkNest is validating the shared content and preparing the Add Website flow.",
+                                text = stringResource(R.string.share_preparing),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -181,7 +183,7 @@ private fun ShareEntryScreen(
 
                     is ShareCaptureUiState.Error -> {
                         Text(
-                            text = "Unable to capture this share",
+                            text = stringResource(R.string.share_error),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
                         )
@@ -196,14 +198,14 @@ private fun ShareEntryScreen(
                             onClick = onOpenDashboard,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
-                            Text("Open LinkNest")
+                            Text(stringResource(R.string.share_open))
                         }
                         Spacer(modifier = Modifier.height(10.dp))
                         OutlinedButton(
                             onClick = onClose,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
-                            Text("Close")
+                            Text(stringResource(R.string.share_close))
                         }
                     }
                 }

@@ -1,5 +1,6 @@
 package com.linknest.feature.settings
 
+import android.text.format.DateFormat
 import android.text.format.Formatter
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -35,7 +36,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -44,7 +47,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.linknest.core.designsystem.component.GlassPanel
 import com.linknest.core.designsystem.component.LinkNestGradientBackground
 import com.linknest.core.model.IntegrityEvent
+import com.linknest.core.model.IntegrityEventType
+import java.text.NumberFormat
+import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.TimeZone
 
 @Composable
 fun IntegrityCenterRoute(
@@ -73,9 +80,10 @@ fun IntegrityCenterRoute(
     )
 }
 
+@androidx.annotation.VisibleForTesting(otherwise = androidx.annotation.VisibleForTesting.PRIVATE)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun IntegrityCenterScreen(
+fun IntegrityCenterScreen(
     uiState: IntegrityCenterUiState,
     snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier,
@@ -84,21 +92,23 @@ private fun IntegrityCenterScreen(
     onOpenHealthReport: () -> Unit,
 ) {
     val context = LocalContext.current
+    val locale = LocalConfiguration.current.locales[0]
+    val numberFormat = remember(locale) { NumberFormat.getIntegerInstance(locale) }
     LinkNestGradientBackground(modifier = modifier) {
         Scaffold(
             containerColor = androidx.compose.ui.graphics.Color.Transparent,
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 TopAppBar(
-                    title = { Text("Integrity Center") },
+                    title = { Text(stringResource(R.string.settings_integrity_center)) },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Go back")
+                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.settings_go_back))
                         }
                     },
                     actions = {
                         IconButton(onClick = onRefresh) {
-                            Icon(Icons.Rounded.Refresh, contentDescription = "Refresh diagnostics")
+                            Icon(Icons.Rounded.Refresh, contentDescription = stringResource(R.string.settings_refresh_diagnostics))
                         }
                     },
                 )
@@ -125,26 +135,26 @@ private fun IntegrityCenterScreen(
                     item {
                         GlassPanel {
                             Text(
-                                text = "Diagnostics Overview",
+                                text = stringResource(R.string.settings_diagnostics_overview),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold,
                             )
                             Spacer(modifier = Modifier.height(12.dp))
-                            IntegrityMetricRow("Last health check", uiState.overview.lastHealthCheckAt.formatTimestamp())
-                            IntegrityMetricRow("Last backup", uiState.overview.lastBackupAt.formatTimestamp())
-                            IntegrityMetricRow("Last restore", uiState.overview.lastRestoreAt.formatTimestamp())
-                            IntegrityMetricRow("Broken links", uiState.overview.brokenLinksCount.toString())
-                            IntegrityMetricRow("Possible duplicates", uiState.overview.duplicateCount.toString())
-                            IntegrityMetricRow("Unsorted entries", uiState.overview.unsortedCount.toString())
-                            IntegrityMetricRow("Icon cache size", Formatter.formatShortFileSize(context, uiState.overview.cacheSizeBytes))
-                            IntegrityMetricRow("Database size", Formatter.formatShortFileSize(context, uiState.overview.databaseSizeBytes))
+                            IntegrityMetricRow(stringResource(R.string.settings_last_health_check), uiState.overview.lastHealthCheckAt.formatTimestamp())
+                            IntegrityMetricRow(stringResource(R.string.settings_last_backup), uiState.overview.lastBackupAt.formatTimestamp())
+                            IntegrityMetricRow(stringResource(R.string.settings_last_restore), uiState.overview.lastRestoreAt.formatTimestamp())
+                            IntegrityMetricRow(stringResource(R.string.settings_broken_links), numberFormat.format(uiState.overview.brokenLinksCount))
+                            IntegrityMetricRow(stringResource(R.string.settings_possible_duplicates), numberFormat.format(uiState.overview.duplicateCount))
+                            IntegrityMetricRow(stringResource(R.string.settings_unsorted_entries), numberFormat.format(uiState.overview.unsortedCount))
+                            IntegrityMetricRow(stringResource(R.string.settings_icon_cache_size), Formatter.formatShortFileSize(context, uiState.overview.cacheSizeBytes))
+                            IntegrityMetricRow(stringResource(R.string.settings_database_size), Formatter.formatShortFileSize(context, uiState.overview.databaseSizeBytes))
                         }
                     }
 
                     item {
                         GlassPanel {
                             Text(
-                                text = "Maintenance",
+                                text = stringResource(R.string.settings_maintenance),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold,
                             )
@@ -153,10 +163,10 @@ private fun IntegrityCenterScreen(
                                 OutlinedButton(onClick = onOpenHealthReport) {
                                     Icon(Icons.Rounded.HealthAndSafety, contentDescription = null)
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Open Health Report")
+                                    Text(stringResource(R.string.settings_open_health_report))
                                 }
                                 OutlinedButton(onClick = onRefresh) {
-                                    Text("Refresh")
+                                    Text(stringResource(R.string.settings_refresh))
                                 }
                             }
                         }
@@ -165,7 +175,7 @@ private fun IntegrityCenterScreen(
                     if (uiState.overview.recentEvents.isNotEmpty()) {
                         item {
                             Text(
-                                text = "Recent Integrity Events",
+                                text = stringResource(R.string.settings_recent_integrity_events),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold,
                             )
@@ -185,7 +195,7 @@ private fun IntegrityCenterScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                 ) {
                                     Text(
-                                        text = event.type.name.lowercase().replace('_', ' '),
+                                        text = stringResource(event.type.labelResource),
                                         style = MaterialTheme.typography.labelMedium,
                                     )
                                     Text(
@@ -220,11 +230,25 @@ private fun IntegrityMetricRow(
     Spacer(modifier = Modifier.height(8.dp))
 }
 
-private fun Long?.formatTimestamp(): String {
-    if (this == null || this <= 0L) return "Not available"
-    return java.text.DateFormat.getDateTimeInstance(
-        java.text.DateFormat.MEDIUM,
-        java.text.DateFormat.SHORT,
-    )
-        .format(Date(this))
+@Composable
+internal fun Long?.formatTimestamp(): String {
+    if (this == null || this <= 0L) return stringResource(R.string.settings_not_available)
+    val locale = LocalConfiguration.current.locales[0]
+    val use24Hour = DateFormat.is24HourFormat(LocalContext.current)
+    val zone = TimeZone.getDefault()
+    val formatter = remember(locale, use24Hour, zone) {
+        val pattern = DateFormat.getBestDateTimePattern(locale, if (use24Hour) "yMMMdHm" else "yMMMdhm")
+        SimpleDateFormat(pattern, locale).apply { timeZone = zone }
+    }
+    return formatter.format(Date(this))
 }
+
+@get:androidx.annotation.StringRes
+private val IntegrityEventType.labelResource: Int
+    get() = when (this) {
+        IntegrityEventType.HEALTH_SCAN -> R.string.settings_event_health_scan
+        IntegrityEventType.BACKUP_EXPORT -> R.string.settings_event_backup_export
+        IntegrityEventType.RESTORE_IMPORT -> R.string.settings_event_restore_import
+        IntegrityEventType.DUPLICATE_SCAN -> R.string.settings_event_duplicate_scan
+        IntegrityEventType.CACHE_MAINTENANCE -> R.string.settings_event_cache_maintenance
+    }

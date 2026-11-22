@@ -8,9 +8,6 @@ import com.linknest.core.common.coroutine.IoDispatcher
 import com.linknest.core.data.storage.LinkNestStorage
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
@@ -51,7 +48,7 @@ class BackupFileManager @Inject constructor(
         recoveryStore.reconcile(current)
 
     @Synchronized fun getRecoveryBackupInfo(): StagedBackupInfo? =
-        runCatching { recoveryStore.latest()?.let { info(it, "Recovery JSON") } }.getOrNull()
+        runCatching { recoveryStore.latest()?.let(::info) }.getOrNull()
 
     suspend fun readRecoveryBackup(): ReadResult = withContext(ioDispatcher) {
         readResult("Failed to read recovery") {
@@ -91,12 +88,9 @@ class BackupFileManager @Inject constructor(
         } catch (_: java.io.FileNotFoundException) { null }
     }
 
-    fun getStagedBackupInfo(): StagedBackupInfo? = getStagedBackup()?.let { info(it, "Export JSON") }
+    fun getStagedBackupInfo(): StagedBackupInfo? = getStagedBackup()?.let(::info)
 
-    private fun info(file: File, type: String): StagedBackupInfo {
-        val date = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(file.lastModified()))
-        return StagedBackupInfo(file, date, type, "${file.length() / 1024}KB")
-    }
+    private fun info(file: File) = StagedBackupInfo(file, file.lastModified(), file.length())
 
     suspend fun readStagedBackup(): ReadResult = withContext(ioDispatcher) {
         val file = getStagedBackup()
@@ -201,7 +195,6 @@ class BackupFileManager @Inject constructor(
 
 data class StagedBackupInfo(
     val file: File,
-    val dateLabel: String,
-    val typeLabel: String,
-    val sizeLabel: String,
+    val modifiedAtMillis: Long,
+    val sizeBytes: Long,
 )

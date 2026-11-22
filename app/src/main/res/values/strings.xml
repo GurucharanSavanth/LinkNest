@@ -22,4 +22,10 @@
 
 
 
+    <string name="share_missing">No usable website URL was found in the shared content.</string>
+    <string name="share_loading">Capturing shared link</string>
+    <string name="share_preparing">LinkNest is validating the shared content and preparing the Add Website flow.</string>
+    <string name="share_error">Unable to capture this share</string>
+    <string name="share_open">Open LinkNest</string>
+    <string name="share_close">Close</string>
 </resources>

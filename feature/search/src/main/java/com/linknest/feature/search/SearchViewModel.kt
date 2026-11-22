@@ -1,5 +1,6 @@
 package com.linknest.feature.search
 
+import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -36,6 +37,7 @@ import com.linknest.core.model.TagModel
 import com.linknest.core.model.WebsiteListItem
 import com.linknest.core.model.WebsitePriority
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -107,6 +109,7 @@ class SearchViewModel @Inject constructor(
     private val getAllWebsiteItemsUseCase: GetAllWebsiteItemsUseCase,
     private val applyFilterUseCase: ApplyFilterUseCase,
     private val warmSearchIndexUseCase: WarmSearchIndexUseCase,
+    @param:ApplicationContext private val context: Context,
 ) : ViewModel() {
     private val restoredDraft = savedStateHandle.contains("searchDraft")
     private var initialFilterPending = !restoredDraft
@@ -193,14 +196,14 @@ class SearchViewModel @Inject constructor(
                     initialSavedFilterId?.let { filterId ->
                         val filter = filters.firstOrNull { it.id == filterId }
                         if (filter != null) applySavedFilter(filter)
-                        else _uiState.update { it.copy(userMessage = "That saved search no longer exists.") }
+                        else _uiState.update { it.copy(userMessage = context.getString(R.string.search_missing_search)) }
                     }
                 }
                 val activeId = uiState.value.activeSavedFilterId
                 if (activeId != null && filters.firstOrNull { it.id == activeId }?.spec != currentFilterSpec()) {
                     _uiState.update { it.copy(
                         activeSavedFilterId = null,
-                        userMessage = "Saved search changed or was removed. Your current criteria are preserved.",
+                        userMessage = context.getString(R.string.search_changed_filter),
                     ) }
                     emitSearchRequest()
                 }
@@ -240,7 +243,7 @@ class SearchViewModel @Inject constructor(
             runCatching { clearRecentQueriesUseCase() }
                 .onFailure { throwable ->
                     _uiState.update {
-                        it.copy(userMessage = throwable.message ?: "Unable to clear recent queries.")
+                        it.copy(userMessage = throwable.message ?: context.getString(R.string.search_clear_queries_failed))
                     }
                 }
         }
@@ -354,7 +357,7 @@ class SearchViewModel @Inject constructor(
             runCatching { deleteSavedFilterUseCase(filterId) }
                 .onFailure { throwable ->
                     _uiState.update {
-                        it.copy(userMessage = throwable.message ?: "Unable to delete saved search.")
+                        it.copy(userMessage = throwable.message ?: context.getString(R.string.search_delete_failed))
                     }
                 }
         }
@@ -363,7 +366,7 @@ class SearchViewModel @Inject constructor(
     fun onSaveCurrentFilter(name: String) {
         val trimmedName = name.trim()
         if (trimmedName.isBlank()) {
-            _uiState.update { it.copy(userMessage = "Search name is required.") }
+            _uiState.update { it.copy(userMessage = context.getString(R.string.search_name_required)) }
             return
         }
         viewModelScope.launch {
@@ -376,13 +379,13 @@ class SearchViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         activeSavedFilterId = filter.id,
-                        userMessage = "Saved search added.",
+                        userMessage = context.getString(R.string.search_added),
                     )
                 }
                 emitSearchRequest()
             }.onFailure { throwable ->
                 _uiState.update {
-                    it.copy(userMessage = throwable.message ?: "Unable to save current search.")
+                    it.copy(userMessage = throwable.message ?: context.getString(R.string.search_save_failed))
                 }
             }
         }
@@ -589,7 +592,7 @@ class SearchViewModel @Inject constructor(
                     id = "recent-${recentQuery.id}",
                     type = SearchSuggestionType.RECENT_QUERY,
                     title = recentQuery.query,
-                    supportingText = "Recent query",
+                    supportingText = context.getString(R.string.search_recent_query),
                     query = recentQuery.query,
                 )
             }
@@ -630,7 +633,7 @@ class SearchViewModel @Inject constructor(
         query: String,
     ): SearchResultModel {
         val groups = items
-            .groupBy { item -> categoryNames[item.categoryId] ?: "Other" }
+            .groupBy { item -> categoryNames[item.categoryId] ?: context.getString(R.string.search_other) }
             .map { (categoryName, groupItems) ->
                 SearchResultGroup(
                     title = categoryName,

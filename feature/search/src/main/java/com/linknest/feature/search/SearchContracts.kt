@@ -2,12 +2,12 @@ package com.linknest.feature.search
 
 enum class SearchSmartCollection(
     val routeValue: String,
-    val label: String,
+    @get:androidx.annotation.StringRes val labelResource: Int,
 ) {
-    PINNED(routeValue = "pinned", label = "Pinned"),
-    RECENT(routeValue = "recent", label = "Recent"),
-    DUPLICATES(routeValue = "duplicates", label = "Duplicates"),
-    NEEDS_ATTENTION(routeValue = "needs_attention", label = "Needs Attention"), ;
+    PINNED(routeValue = "pinned", labelResource = R.string.search_pinned),
+    RECENT(routeValue = "recent", labelResource = R.string.search_recent),
+    DUPLICATES(routeValue = "duplicates", labelResource = R.string.search_duplicates),
+    NEEDS_ATTENTION(routeValue = "needs_attention", labelResource = R.string.search_needs_attention), ;
 
     companion object {
         fun fromRouteValue(value: String?): SearchSmartCollection? =

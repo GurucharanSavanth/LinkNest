@@ -5,7 +5,7 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.*
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.junit4.accessibility.enableAccessibilityChecks
 import androidx.test.filters.SdkSuppress
 import org.junit.Rule
@@ -27,7 +27,8 @@ class AccessibilityFlowTest {
         checkAccessibility()
         compose.onNodeWithText("Create category").performScrollTo().performClick()
         checkAccessibility()
-        androidx.test.espresso.Espresso.pressBack()
+        dismissSheet()
+        compose.onNodeWithText("Create Category").assertDoesNotExist()
         compose.onNodeWithContentDescription("Go back").performClick()
         compose.onNodeWithContentDescription("Open advanced search").performClick()
         checkAccessibility()
@@ -110,9 +111,19 @@ class AccessibilityFlowTest {
         inbox.performSemanticsAction(SemanticsActions.OnLongClick) { it() }
         compose.onNodeWithText("Rename or recolor").assertIsDisplayed()
         checkAccessibility()
-        androidx.test.espresso.Espresso.pressBack()
+        dismissSheet()
         compose.onNodeWithText("Rename or recolor").assertDoesNotExist()
         inbox.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, initialState))
+    }
+
+    private fun dismissSheet() {
+        compose.onNode(
+            SemanticsMatcher.keyIsDefined(SemanticsActions.Dismiss),
+            useUnmergedTree = true,
+        ).performSemanticsAction(SemanticsActions.Dismiss) { dismiss ->
+            check(dismiss()) { "The bottom sheet rejected its dismiss action" }
+        }
+        compose.waitForIdle()
     }
 
     private fun waitForInboxState(state: String) {

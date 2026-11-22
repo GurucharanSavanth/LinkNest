@@ -1,38 +1,38 @@
 package com.linknest.feature.dashboard
 
+import android.content.res.Resources
+import com.linknest.core.designsystem.labelResource
 import com.linknest.core.model.FollowUpStatus
 import com.linknest.core.model.WebsiteListItem
 import com.linknest.core.model.WebsitePriority
 
-internal fun WebsiteListItem.dashboardMetadataSummary(): String? {
-    val segments = buildList {
+internal fun WebsiteListItem.dashboardMetadataSummary(resources: Resources): String? {
+    if (reasonSaved.isNullOrBlank() && note.isNullOrBlank() && sourceLabel.isNullOrBlank() &&
+        customLabel.isNullOrBlank() && priority == WebsitePriority.NORMAL && followUpStatus == FollowUpStatus.NONE
+    ) return null
+
+    val segments = buildSet {
         reasonSaved?.trim()?.takeIf(String::isNotEmpty)?.let(::add)
         note?.trim()?.takeIf(String::isNotEmpty)?.let(::add)
-        sourceLabel?.trim()?.takeIf(String::isNotEmpty)?.let { add("Source: $it") }
-        customLabel?.trim()?.takeIf(String::isNotEmpty)?.let { add("Label: $it") }
-        if (priority != WebsitePriority.NORMAL) {
-            add("${priority.displayName} priority")
+        if (size < 2) sourceLabel?.trim()?.takeIf(String::isNotEmpty)?.let { add(resources.getString(R.string.dashboard_source, it)) }
+        if (size < 2) customLabel?.trim()?.takeIf(String::isNotEmpty)?.let { add(resources.getString(R.string.dashboard_label, it)) }
+        if (size < 2 && priority != WebsitePriority.NORMAL) {
+            add(resources.getString(R.string.dashboard_priority, resources.getString(priority.labelResource)))
         }
-        if (followUpStatus != FollowUpStatus.NONE) {
-            add(followUpStatus.displayName)
+        if (size < 2 && followUpStatus != FollowUpStatus.NONE) {
+            add(resources.getString(followUpStatus.labelResource))
         }
-    }
-        .map(String::trim)
-        .filter(String::isNotEmpty)
-        .distinct()
-        .take(2)
-
-    return segments.joinToString(" | ").takeIf(String::isNotBlank)
+    }.iterator()
+    val first = segments.next()
+    return if (segments.hasNext()) resources.getString(R.string.dashboard_metadata_pair, first, segments.next()) else first
 }
 
 internal fun WebsiteListItem.matchesDashboardQuery(query: String): Boolean =
-    title.lowercase().contains(query) ||
-        domain.lowercase().contains(query) ||
-        normalizedUrl.lowercase().contains(query) ||
-        note.orEmpty().lowercase().contains(query) ||
-        reasonSaved.orEmpty().lowercase().contains(query) ||
-        sourceLabel.orEmpty().lowercase().contains(query) ||
-        customLabel.orEmpty().lowercase().contains(query) ||
-        tagNames.any { it.lowercase().contains(query) } ||
-        priority.displayName.lowercase().contains(query) ||
-        followUpStatus.displayName.lowercase().contains(query)
+    title.contains(query, ignoreCase = true) ||
+        domain.contains(query, ignoreCase = true) ||
+        normalizedUrl.contains(query, ignoreCase = true) ||
+        note.orEmpty().contains(query, ignoreCase = true) ||
+        reasonSaved.orEmpty().contains(query, ignoreCase = true) ||
+        sourceLabel.orEmpty().contains(query, ignoreCase = true) ||
+        customLabel.orEmpty().contains(query, ignoreCase = true) ||
+        tagNames.any { it.contains(query, ignoreCase = true) }

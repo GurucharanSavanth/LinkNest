@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.linknest.core.action.ActionResult
+import com.linknest.core.action.model.HealthCheckPipelineOutput
 import com.linknest.core.action.pipeline.HealthCheckPipeline
 import com.linknest.core.data.usecase.GetAllWebsiteItemsUseCase
 import com.linknest.core.model.HealthReportItem
@@ -19,7 +20,7 @@ data class HealthReportUiState(
     val isLoading: Boolean = true,
     val isRunning: Boolean = false,
     val items: List<HealthReportItem> = emptyList(),
-    val summary: String? = null,
+    val summary: HealthCheckPipelineOutput? = null,
     val userMessage: String? = null,
 )
 
@@ -73,7 +74,7 @@ class HealthReportViewModel @Inject constructor(
                         it.copy(
                             isRunning = false,
                             items = result.value.items,
-                            summary = buildSummary(result.value),
+                            summary = result.value,
                         )
                     }
                 }
@@ -82,7 +83,7 @@ class HealthReportViewModel @Inject constructor(
                         it.copy(
                             isRunning = false,
                             items = result.value.items,
-                            summary = buildSummary(result.value),
+                            summary = result.value,
                             userMessage = result.issues.joinToString("\n") { issue -> issue.message },
                         )
                     }
@@ -102,9 +103,4 @@ class HealthReportViewModel @Inject constructor(
     fun onMessageConsumed() {
         _uiState.update { it.copy(userMessage = null) }
     }
-
-    private fun buildSummary(output: com.linknest.core.action.model.HealthCheckPipelineOutput): String =
-        "Checked ${output.checkedCount} links. Good ${output.okCount}, caution " +
-            "${output.blockedCount + output.redirectedCount + output.loginRequiredCount + output.dnsFailedCount + output.sslIssueCount}, " +
-            "failed ${output.deadCount + output.timeoutCount}."
 }

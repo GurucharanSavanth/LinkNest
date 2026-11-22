@@ -23,7 +23,7 @@
     <string name="settings_import_from_file">"Import from file"</string>
     <string name="settings_import_last_export">"Import last export%1$s"</string>
     <string name="settings_integrity_center">"Integrity Center"</string>
-    <string name="settings_last_export_summary">"Last export: %1$s  •  %2$s  •  %3$s"</string>
+    <string name="settings_last_export_summary">"Last export: %1$s  •  Export JSON  •  %2$s"</string>
     <string name="settings_latest_report">"Latest report"</string>
     <string name="settings_no_auto_save_folder">"No auto-save folder"</string>
     <string name="settings_parenthesized_date">" (%1$s)"</string>
@@ -63,4 +63,52 @@
         <item quantity="one">%1$d category</item>
         <item quantity="other">%1$d categories</item>
     </plurals>
+    <plurals name="settings_checked_links">
+        <item quantity="one">Checked %1$d link</item>
+        <item quantity="other">Checked %1$d links</item>
+    </plurals>
+    <string name="settings_refresh_diagnostics">Refresh diagnostics</string>
+    <string name="settings_diagnostics_overview">Diagnostics Overview</string>
+    <string name="settings_last_health_check">Last health check</string>
+    <string name="settings_last_backup">Last backup</string>
+    <string name="settings_last_restore">Last restore</string>
+    <string name="settings_broken_links">Broken links</string>
+    <string name="settings_possible_duplicates">Possible duplicates</string>
+    <string name="settings_unsorted_entries">Unsorted entries</string>
+    <string name="settings_icon_cache_size">Icon cache size</string>
+    <string name="settings_database_size">Database size</string>
+    <string name="settings_maintenance">Maintenance</string>
+    <string name="settings_open_health_report">Open Health Report</string>
+    <string name="settings_refresh">Refresh</string>
+    <string name="settings_recent_integrity_events">Recent Integrity Events</string>
+    <string name="settings_event_health_scan">Health scan</string>
+    <string name="settings_event_backup_export">Backup export</string>
+    <string name="settings_event_restore_import">Restore import</string>
+    <string name="settings_event_duplicate_scan">Duplicate scan</string>
+    <string name="settings_event_cache_maintenance">Cache maintenance</string>
+    <string name="settings_not_available">Not available</string>
+    <string name="settings_legend">Legend</string>
+    <string name="settings_good_health_legend">Green = Good health</string>
+    <string name="settings_caution_legend">Yellow = Blocked / use VPN / login / caution</string>
+    <string name="settings_failed_health_legend">Red = Not good health / dead / unreachable</string>
+    <string name="settings_refresh_report">Refresh Report</string>
+    <string name="settings_health_result">%1$s. Good %2$d, caution %3$d, failed %4$d.</string>
+    <string name="settings_folder_set">Backup folder set.</string>
+    <string name="settings_folder_cleared">Backup folder cleared.</string>
+    <string name="settings_saved_to_folder">Backup saved to your chosen folder.</string>
+    <string name="settings_backup_ready">Backup ready. Choose where to save.</string>
+    <string name="settings_export_failed">Export failed.</string>
+    <string name="settings_save_success">Backup saved successfully.</string>
+    <string name="settings_export_expired">Export expired before saving. The last backup is staged — export again or use \"Import last export\".</string>
+    <string name="settings_save_cancelled">Save cancelled. Backup is staged — click \"Import last export\" to restore.</string>
+    <string name="settings_backup_empty">Backup text is empty.</string>
+    <string name="settings_backup_invalid">Invalid backup.</string>
+    <string name="settings_restore_complete">Restore complete. Previous library is retained for recovery.</string>
+    <string name="settings_restore_before_commit_failed">Restore failed before replacement.</string>
+    <string name="settings_restore_failed">Restore failed.</string>
+    <string name="settings_choose_destination">%1$s Choose where to save.</string>
+    <string name="settings_restore_complete_protected">Restore complete. Recovery remains protected: %1$s</string>
+    <string name="settings_restore_failed_protected">%1$s Recovery remains protected: %2$s</string>
+    <string name="settings_health_overview">%1$s — OK %2$d, issues %3$d.</string>
+    <string name="settings_health_warnings">%1$s with warnings.</string>
 </resources>

@@ -58,7 +58,7 @@ object PublicWebClient {
                     current = value.header("Location")?.let { value.request.url.resolve(it)?.toString() }
                         ?: error("Redirect destination is missing.")
                 } else {
-                    val bytes = value.body?.byteStream()?.use { stream ->
+                    val bytes = value.body.byteStream().use { stream ->
                         val output = java.io.ByteArrayOutputStream()
                         val buffer = ByteArray(8192)
                         while (output.size() <= maxBytes && maxBytes > 0) {
@@ -69,7 +69,7 @@ object PublicWebClient {
                             output.write(buffer, 0, count)
                         }
                         output.toByteArray()
-                    } ?: byteArrayOf()
+                    }
                     return@withContext PublicWebResponse(value.request.url.toString(), value.code, value.header("Content-Type"), bytes)
                 }
             }

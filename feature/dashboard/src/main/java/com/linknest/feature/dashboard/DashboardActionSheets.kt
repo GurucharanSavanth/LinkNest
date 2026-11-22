@@ -32,7 +32,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -56,20 +55,14 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
+import com.linknest.core.designsystem.categoryColorOptions
+import com.linknest.core.designsystem.categoryIconOptions
 import com.linknest.core.designsystem.component.GlassPanel
+import com.linknest.core.designsystem.component.rememberFullyExpandedSheetState
 import com.linknest.core.model.DashboardCategory
 import com.linknest.core.model.DashboardSmartSection
 import com.linknest.core.model.HealthStatus
 import com.linknest.core.model.WebsiteListItem
-
-private val CategoryActionColors = listOf(
-    "#7C4DFF" to "Purple", "#00BCD4" to "Cyan", "#4CAF50" to "Green",
-    "#FF9800" to "Orange", "#F06292" to "Pink", "#FFD54F" to "Yellow",
-)
-private val CategoryActionIcons = listOf("🧠", "📁", "🚀", "🎨", "💼", "🌐")
-private val CategoryActionIconNames = listOf("Brain", "Folder", "Rocket", "Art", "Briefcase", "Globe")
-
-
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,7 +78,7 @@ fun WebsiteActionsSheet(
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetState = rememberFullyExpandedSheetState(),
     ) {
         Column(
             modifier = Modifier
@@ -125,7 +118,7 @@ fun CategoryActionsSheet(
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetState = rememberFullyExpandedSheetState(),
     ) {
         Column(
             modifier = Modifier
@@ -156,7 +149,7 @@ fun CategoryReorderSheet(
     val selected = categories.firstOrNull { it.id == selectedCategoryId } ?: return
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetState = rememberFullyExpandedSheetState(),
     ) {
         Column(
             modifier = Modifier
@@ -192,7 +185,7 @@ fun WebsiteReorderSheet(
     val selected = category.websites.firstOrNull { it.id == selectedWebsiteId } ?: return
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetState = rememberFullyExpandedSheetState(),
     ) {
         Column(
             modifier = Modifier
@@ -241,11 +234,11 @@ fun EditCategorySheet(
 ) {
     var name by rememberSaveable(category.id) { mutableStateOf(category.name) }
     var colorHex by rememberSaveable(category.id) { mutableStateOf(category.colorHex) }
-    var iconValue by rememberSaveable(category.id) { mutableStateOf(category.iconValue ?: CategoryActionIcons.first()) }
+    var iconValue by rememberSaveable(category.id) { mutableStateOf(category.iconValue ?: categoryIconOptions.first().first) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetState = rememberFullyExpandedSheetState(),
     ) {
         Column(
             modifier = Modifier
@@ -259,9 +252,10 @@ fun EditCategorySheet(
             OutlinedTextField(value = name, onValueChange = { name = it }, modifier = Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.dashboard_category_name)) }, singleLine = true)
             Text(stringResource(R.string.dashboard_color), fontWeight = FontWeight.SemiBold)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                CategoryActionColors.forEach { (candidate, colorName) ->
+                categoryColorOptions.forEach { (candidate, labelResource) ->
+                    val label = stringResource(labelResource)
                     Surface(
-                        modifier = Modifier.size(48.dp).semantics { contentDescription = "$colorName color"; selected = colorHex == candidate }.clip(CircleShape).clickable { colorHex = candidate },
+                        modifier = Modifier.size(48.dp).semantics { contentDescription = label; selected = colorHex == candidate }.clip(CircleShape).clickable { colorHex = candidate },
                         color = Color(candidate.toColorInt()),
                         tonalElevation = if (candidate == colorHex) 4.dp else 0.dp,
                     ) {}
@@ -269,11 +263,12 @@ fun EditCategorySheet(
             }
             Text(stringResource(R.string.dashboard_icon), fontWeight = FontWeight.SemiBold)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                CategoryActionIcons.forEachIndexed { index, candidate ->
+                categoryIconOptions.forEach { (candidate, labelResource) ->
+                    val label = stringResource(labelResource)
                     FilterChip(
                         selected = candidate == iconValue,
                         onClick = { iconValue = candidate },
-                        modifier = Modifier.semantics { contentDescription = "${CategoryActionIconNames[index]} icon" },
+                        modifier = Modifier.semantics { contentDescription = label },
                         label = { Text(candidate, modifier = Modifier.clearAndSetSemantics {}) },
                     )
                 }

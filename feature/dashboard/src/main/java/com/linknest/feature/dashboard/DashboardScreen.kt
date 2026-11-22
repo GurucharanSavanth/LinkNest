@@ -1,7 +1,6 @@
 package com.linknest.feature.dashboard
 
 import androidx.core.graphics.toColorInt
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -22,8 +21,10 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -50,7 +51,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -68,7 +68,9 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
@@ -81,6 +83,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 
+import com.linknest.core.designsystem.labelResource
 import com.linknest.core.model.DashboardCategory
 import com.linknest.core.model.DashboardSmartSection
 import com.linknest.core.model.LayoutMode
@@ -179,6 +182,7 @@ private fun DashboardScreen(
         uiState.dashboard.categories.firstNotNullOfOrNull { category -> category.websites.firstOrNull { it.id == id } }
     }
 
+    val resources = LocalResources.current
     LaunchedEffect(uiState.isLoading, uiState.dashboard.categories) {
         if (!uiState.isLoading) {
             val missing = (websiteActionId != null && websiteActionTarget == null) ||
@@ -196,7 +200,7 @@ private fun DashboardScreen(
                 if (categoryEditTarget == null) categoryEditId = null
                 if (categoryReorderTarget == null) categoryReorderId = null
                 if (websiteReorderTarget == null) websiteReorderId = null
-                snackbarHostState.showSnackbar("The selected item is no longer available in this view.")
+                snackbarHostState.showSnackbar(resources.getString(R.string.dashboard_selection_unavailable))
             }
         }
     }
@@ -273,16 +277,16 @@ private fun DashboardScreen(
     }
     websiteDeleteTarget?.let { website ->
         ConfirmDeleteDialog(
-            title = "Delete website",
-            message = "Remove ${website.title} from LinkNest?",
+            title = stringResource(R.string.dashboard_delete_website),
+            message = stringResource(R.string.dashboard_confirm_delete_website, website.title),
             onDismiss = { websiteDeleteId = null },
             onConfirm = { onDeleteWebsite(website.id); websiteDeleteId = null },
         )
     }
     categoryDeleteTarget?.let { category ->
         ConfirmDeleteDialog(
-            title = "Delete category",
-            message = "Delete ${category.name} and its saved websites?",
+            title = stringResource(R.string.dashboard_delete_category),
+            message = stringResource(R.string.dashboard_confirm_delete_category, category.name),
             onDismiss = { categoryDeleteId = null },
             onConfirm = { onDeleteCategory(category.id); categoryDeleteId = null },
         )
@@ -330,25 +334,28 @@ private fun DashboardScreen(
                     onClick = onAddWebsite,
                     shape = RoundedCornerShape(16.dp),
                 ) {
-                    Icon(Icons.Rounded.Add, contentDescription = "Add Website")
+                    Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.dashboard_add_website))
                 }
             },
         ) { innerPadding ->
             if (uiState.isLoading) {
                 Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(modifier = Modifier.semantics { contentDescription = "Loading dashboard" })
+                    val loadingLabel = stringResource(R.string.dashboard_loading)
+                    CircularProgressIndicator(modifier = Modifier.semantics { contentDescription = loadingLabel })
                 }
             } else {
-                BoxWithConstraints {
                 val columns = if (uiState.dashboard.layoutMode == LayoutMode.GRID) {
-                    ((maxWidth - 32.dp) / uiState.dashboard.adaptiveGridMinSizeDp.dp).toInt().coerceAtLeast(1)
-                } else 1
-                LazyColumn(
+                    GridCells.Adaptive(uiState.dashboard.adaptiveGridMinSizeDp.dp)
+                } else GridCells.Fixed(1)
+                val fallbackAccent = MaterialTheme.colorScheme.primary
+                LazyVerticalGrid(
+                    columns = columns,
                     modifier = Modifier.fillMaxSize().padding(innerPadding),
                     contentPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    item(key = "dashboard-header") {
+                    item(key = "dashboard-header", span = { GridItemSpan(maxLineSpan) }, contentType = "header") {
                         DashboardHeader(
                             searchQuery = uiState.searchQuery,
                             layoutMode = uiState.dashboard.layoutMode,
@@ -360,38 +367,37 @@ private fun DashboardScreen(
                         )
                     }
                     uiState.dashboard.pinnedSection?.takeIf { it.websites.isNotEmpty() }?.let { pinned ->
-                        item(key = "pinned") { PinnedSection(section = pinned, onOpenWebsite = onOpenWebsite) }
+                        item(key = "pinned", span = { GridItemSpan(maxLineSpan) }, contentType = "pinned") {
+                            PinnedSection(section = pinned, onOpenWebsite = onOpenWebsite)
+                        }
                     }
                     if (uiState.dashboard.categories.isEmpty()) {
-                        item(key = "empty") { Text("No categories match. Clear search or restore archived categories in Settings.") }
+                        item(key = "empty", span = { GridItemSpan(maxLineSpan) }, contentType = "empty") {
+                            Text(stringResource(R.string.dashboard_no_matches))
+                        }
                     }
                     uiState.dashboard.categories.forEach { category ->
-                        item(key = "category-${category.id}") {
+                        val accentColor = category.colorHex.toColorOr(fallbackAccent)
+                        item(key = "category-${category.id}", span = { GridItemSpan(maxLineSpan) }, contentType = "category") {
                             CategoryHeader(
                                 category = category,
+                                accentColor = accentColor,
                                 focusedCategoryId = uiState.focusedCategoryId,
                                 onToggleCategory = { onToggleCategory(category.id) },
                                 onCategoryLongPress = { categoryActionId = category.id },
                             )
                         }
                         if (!category.isCollapsed) {
-                            items(category.websites.chunked(columns), key = { "row-${it.first().id}" }) { websites ->
-                                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    websites.forEach { website ->
-                                        key(website.id) {
-                                            WebsiteTile(
-                                                website = website,
-                                                accentColor = category.colorHex.toColorOr(MaterialTheme.colorScheme.primary),
-                                                modifier = Modifier.weight(1f),
-                                                layoutMode = uiState.dashboard.layoutMode,
-                                                isFocused = uiState.focusedWebsiteId == website.id,
-                                                onOpenWebsite = { onOpenWebsite(website) },
-                                                onLongPress = { websiteActionId = website.id },
-                                            )
-                                        }
-                                    }
-                                    repeat(columns - websites.size) { Spacer(Modifier.weight(1f)) }
-                                }
+                            items(category.websites, key = { it.id }, contentType = { uiState.dashboard.layoutMode }) { website ->
+                                WebsiteTile(
+                                    website = website,
+                                    accentColor = accentColor,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    layoutMode = uiState.dashboard.layoutMode,
+                                    isFocused = uiState.focusedWebsiteId == website.id,
+                                    onOpenWebsite = { onOpenWebsite(website) },
+                                    onLongPress = { websiteActionId = website.id },
+                                )
                             }
                         }
                     }
@@ -399,7 +405,6 @@ private fun DashboardScreen(
             }
         }
     }
-}
 }
 
 @Composable
@@ -412,7 +417,7 @@ private fun DashboardHeader(
     onOpenSearch: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
-Surface(
+    Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
@@ -483,10 +488,10 @@ private fun DashboardSearchField(
         leadingIcon = {
             Icon(
                 Icons.AutoMirrored.Rounded.ManageSearch,
-                contentDescription = "Search",
+                contentDescription = stringResource(R.string.dashboard_search),
             )
         },
-        placeholder = { Text("Search links...") },
+        placeholder = { Text(stringResource(R.string.dashboard_search_hint)) },
         singleLine = true,
         shape = RoundedCornerShape(16.dp),
         colors = TextFieldDefaults.colors(
@@ -508,10 +513,10 @@ private fun DashboardHeaderActions(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onOpenSearch) {
-            Icon(Icons.AutoMirrored.Rounded.ManageSearch, contentDescription = "Open advanced search")
+            Icon(Icons.AutoMirrored.Rounded.ManageSearch, contentDescription = stringResource(R.string.dashboard_open_search))
         }
         IconButton(onClick = onOpenSettings) {
-            Icon(Icons.Rounded.Settings, contentDescription = "Settings")
+            Icon(Icons.Rounded.Settings, contentDescription = stringResource(R.string.dashboard_settings))
         }
     }
 }
@@ -524,10 +529,10 @@ private fun LayoutToggle(layoutMode: LayoutMode, onLayoutModeChanged: (LayoutMod
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(modifier = Modifier.semantics { selected = layoutMode == LayoutMode.LIST }, onClick = { onLayoutModeChanged(LayoutMode.LIST) }) {
-                Icon(Icons.Rounded.ViewAgenda, contentDescription = "List mode", tint = if (layoutMode == LayoutMode.LIST) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(Icons.Rounded.ViewAgenda, contentDescription = stringResource(R.string.dashboard_list_mode), tint = if (layoutMode == LayoutMode.LIST) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             }
             IconButton(modifier = Modifier.semantics { selected = layoutMode == LayoutMode.GRID }, onClick = { onLayoutModeChanged(LayoutMode.GRID) }) {
-                Icon(Icons.Rounded.GridView, contentDescription = "Grid mode", tint = if (layoutMode == LayoutMode.GRID) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(Icons.Rounded.GridView, contentDescription = stringResource(R.string.dashboard_grid_mode), tint = if (layoutMode == LayoutMode.GRID) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -542,14 +547,14 @@ private fun PinnedSection(section: DashboardSmartSection, onOpenWebsite: (Websit
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Text("Pinned", fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.dashboard_pinned), fontWeight = FontWeight.SemiBold)
             Spacer(modifier = Modifier.height(10.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 section.websites.forEach { website ->
                     AssistChip(
                         onClick = { onOpenWebsite(website) },
                         label = { Text(website.title) },
-                        leadingIcon = { Icon(Icons.Rounded.PushPin, contentDescription = "Pinned") },
+                        leadingIcon = { Icon(Icons.Rounded.PushPin, contentDescription = stringResource(R.string.dashboard_pinned)) },
                     )
                 }
             }
@@ -557,15 +562,15 @@ private fun PinnedSection(section: DashboardSmartSection, onOpenWebsite: (Websit
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CategoryHeader(
     category: DashboardCategory,
+    accentColor: Color,
     focusedCategoryId: Long?,
     onToggleCategory: () -> Unit,
     onCategoryLongPress: () -> Unit,
 ) {
-    val accentColor = category.colorHex.toColorOr(MaterialTheme.colorScheme.primary)
+    val expandedState = stringResource(if (category.isCollapsed) R.string.dashboard_collapsed else R.string.dashboard_expanded)
     Surface(
         modifier = Modifier
             .fillMaxWidth(),
@@ -575,12 +580,12 @@ private fun CategoryHeader(
         Column(modifier = Modifier.padding(14.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth()
-                    .semantics { stateDescription = if (category.isCollapsed) "Collapsed" else "Expanded" }
+                    .semantics { stateDescription = expandedState }
                     .combinedClickable(
                         onClick = onToggleCategory,
-                        onClickLabel = if (category.isCollapsed) "Expand category" else "Collapse category",
+                        onClickLabel = stringResource(if (category.isCollapsed) R.string.dashboard_expand_category else R.string.dashboard_collapse_category),
                         onLongClick = onCategoryLongPress,
-                        onLongClickLabel = "Show category actions",
+                        onLongClickLabel = stringResource(R.string.dashboard_category_actions),
                     ),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
@@ -599,7 +604,7 @@ private fun CategoryHeader(
                     }
                 }
                 if (focusedCategoryId == category.id) {
-                    Icon(Icons.Rounded.PushPin, contentDescription = "Focused category", tint = accentColor)
+                    Icon(Icons.Rounded.PushPin, contentDescription = stringResource(R.string.dashboard_focused_category), tint = accentColor)
                 }
             }
 
@@ -607,35 +612,46 @@ private fun CategoryHeader(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun WebsiteTile(
     website: WebsiteListItem,
     accentColor: Color,
     modifier: Modifier,
-    layoutMode: LayoutMode = LayoutMode.LIST,
+    layoutMode: LayoutMode,
     isFocused: Boolean,
     onOpenWebsite: () -> Unit,
     onLongPress: () -> Unit,
 ) {
-    if (layoutMode == LayoutMode.GRID) {
-        GridWebsiteTile(
-            website = website,
-            accentColor = accentColor,
-            modifier = modifier,
-            isFocused = isFocused,
-            onOpenWebsite = onOpenWebsite,
-            onLongPress = onLongPress,
-        )
+    val grid = layoutMode == LayoutMode.GRID
+    val resources = LocalResources.current
+    val healthLabel = stringResource(website.healthStatus.labelResource)
+    val backgroundColor = if (isFocused) {
+        accentColor.copy(alpha = 0.16f)
     } else {
-        ListWebsiteTile(
-            website = website,
-            accentColor = accentColor,
-            modifier = modifier,
-            isFocused = isFocused,
-            onOpenWebsite = onOpenWebsite,
-            onLongPress = onLongPress,
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (grid) 0.42f else 0.46f)
+    }
+    val tile = modifier
+        .clip(RoundedCornerShape(if (grid) 20.dp else 18.dp))
+        .background(backgroundColor)
+        .semantics {
+            contentDescription = resources.getString(
+                if (website.isPinned) R.string.dashboard_tile_description_pinned else R.string.dashboard_tile_description,
+                website.title, website.domain, healthLabel,
+            )
+        }
+        .combinedClickable(
+            onClickLabel = stringResource(R.string.dashboard_open_website, website.title),
+            onLongClickLabel = stringResource(R.string.dashboard_website_actions),
+            role = Role.Button,
+            onClick = onOpenWebsite,
+            onLongClick = onLongPress,
         )
+        .padding(14.dp)
+    val metadataSummary = website.dashboardMetadataSummary(resources)
+    if (grid) {
+        GridWebsiteTile(website, accentColor, metadataSummary, healthLabel, tile)
+    } else {
+        ListWebsiteTile(website, accentColor, metadataSummary, healthLabel, tile)
     }
 }
 
@@ -644,31 +660,12 @@ private fun WebsiteTile(
 private fun ListWebsiteTile(
     website: WebsiteListItem,
     accentColor: Color,
+    metadataSummary: String?,
+    healthLabel: String,
     modifier: Modifier,
-    isFocused: Boolean,
-    onOpenWebsite: () -> Unit,
-    onLongPress: () -> Unit,
 ) {
-    val metadataSummary = website.dashboardMetadataSummary()
     Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(18.dp))
-            .background(
-                if (isFocused) {
-                    accentColor.copy(alpha = 0.16f)
-                } else {
-                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.46f)
-                },
-            )
-            .semantics { contentDescription = website.tileContentDescription() }
-            .combinedClickable(
-                onClickLabel = "Open ${website.title}",
-                onLongClickLabel = "Show website actions",
-                role = Role.Button,
-                onClick = onOpenWebsite,
-                onLongClick = onLongPress,
-            )
-            .padding(14.dp),
+        modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -684,7 +681,7 @@ private fun ListWebsiteTile(
                 )
                 if (website.isPinned) {
                     Spacer(modifier = Modifier.width(6.dp))
-                    Icon(Icons.Rounded.PushPin, contentDescription = "Pinned", modifier = Modifier.size(14.dp), tint = accentColor)
+                    Icon(Icons.Rounded.PushPin, contentDescription = null, modifier = Modifier.size(14.dp), tint = accentColor)
                 }
             }
             Text(
@@ -706,8 +703,8 @@ private fun ListWebsiteTile(
             }
             Spacer(modifier = Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(healthStatusColor(website.healthStatus)))
-                Text(website.healthStatus.name.lowercase().replaceFirstChar(Char::uppercaseChar), style = MaterialTheme.typography.labelSmall)
+                Spacer(modifier = Modifier.size(8.dp).background(healthStatusColor(website.healthStatus), CircleShape))
+                Text(healthLabel, style = MaterialTheme.typography.labelSmall)
             }
             if (website.tagNames.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
@@ -726,32 +723,12 @@ private fun ListWebsiteTile(
 private fun GridWebsiteTile(
     website: WebsiteListItem,
     accentColor: Color,
+    metadataSummary: String?,
+    healthLabel: String,
     modifier: Modifier,
-    isFocused: Boolean,
-    onOpenWebsite: () -> Unit,
-    onLongPress: () -> Unit,
 ) {
-    val metadataSummary = website.dashboardMetadataSummary()
     Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(
-                if (isFocused) {
-                    accentColor.copy(alpha = 0.16f)
-                } else {
-                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
-                },
-            )
-            .semantics { contentDescription = website.tileContentDescription() }
-            .combinedClickable(
-                onClickLabel = "Open ${website.title}",
-                onLongClickLabel = "Show website actions",
-                role = Role.Button,
-                onClick = onOpenWebsite,
-                onLongClick = onLongPress,
-            )
-            .padding(14.dp)
-            .animateContentSize(),
+        modifier = modifier.animateContentSize(),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(
@@ -761,7 +738,7 @@ private fun GridWebsiteTile(
         ) {
             WebsiteIcon(title = website.title, emoji = website.emojiIcon, iconUrl = website.preferredIconUrl, accentColor = accentColor)
             if (website.isPinned) {
-                Icon(Icons.Rounded.PushPin, contentDescription = "Pinned", modifier = Modifier.size(16.dp), tint = accentColor)
+                Icon(Icons.Rounded.PushPin, contentDescription = null, modifier = Modifier.size(16.dp), tint = accentColor)
             }
         }
         Text(
@@ -788,9 +765,9 @@ private fun GridWebsiteTile(
             )
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(healthStatusColor(website.healthStatus)))
+            Spacer(modifier = Modifier.size(8.dp).background(healthStatusColor(website.healthStatus), CircleShape))
             Text(
-                text = website.healthStatus.name.lowercase().replaceFirstChar(Char::uppercaseChar),
+                text = healthLabel,
                 style = MaterialTheme.typography.labelSmall,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -819,7 +796,7 @@ private fun MiniTagChip(tag: String) {
         ) {
             Icon(
                 Icons.AutoMirrored.Rounded.Label,
-                contentDescription = "Tag",
+                contentDescription = stringResource(R.string.dashboard_tag),
                 modifier = Modifier.size(12.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -841,7 +818,7 @@ private fun WebsiteIcon(title: String, emoji: String?, iconUrl: String?, accentC
         !iconUrl.isNullOrBlank() && !failed -> AsyncImage(
             model = iconUrl,
             onError = { failed = true },
-            contentDescription = "Website icon for $title",
+            contentDescription = stringResource(R.string.dashboard_website_icon, title),
             modifier = Modifier.size(42.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surface),
             contentScale = ContentScale.Crop,
         )
@@ -852,17 +829,8 @@ private fun WebsiteIcon(title: String, emoji: String?, iconUrl: String?, accentC
         else -> Box(
             modifier = Modifier.size(42.dp).clip(CircleShape).background(accentColor.copy(alpha = 0.2f)),
             contentAlignment = Alignment.Center,
-        ) { Text(title.take(1).uppercase(), fontWeight = FontWeight.Bold) }
+        ) { Text(title.take(1).uppercase(LocalResources.current.configuration.locales[0]), fontWeight = FontWeight.Bold) }
     }
 }
 
 private fun String.toColorOr(fallback: Color): Color = runCatching { Color(this.toColorInt()) }.getOrDefault(fallback)
-
-private fun WebsiteListItem.tileContentDescription(): String = buildString {
-    append(title)
-    append(", ")
-    append(domain)
-    append(", ")
-    append(healthStatus.name.lowercase().replaceFirstChar(Char::uppercaseChar))
-    if (isPinned) append(", pinned")
-}

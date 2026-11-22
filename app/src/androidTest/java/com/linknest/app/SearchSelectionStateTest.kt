@@ -1,7 +1,7 @@
 package com.linknest.app
 
 import android.os.Bundle
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -121,7 +121,7 @@ class SearchSelectionStateTest {
                 state, entry.search(), entry.trackOpen(), entry.filters(), entry.saveFilter(), entry.deleteFilter(),
                 ObserveRecentQueriesUseCase(recentQueries), ClearRecentQueriesUseCase(recentQueries),
                 SaveRecentQueryUseCase(recentQueries), entry.suggestions(), entry.selectableCategories(), entry.tags(),
-                entry.websiteItems(), entry.applyFilter(), entry.warmIndex(),
+                entry.websiteItems(), entry.applyFilter(), entry.warmIndex(), activity.applicationContext,
             ))!!
         }
         return ViewModelProvider(activity.viewModelStore, factory)

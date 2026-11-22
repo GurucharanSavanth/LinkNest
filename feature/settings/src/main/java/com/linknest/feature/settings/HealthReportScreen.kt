@@ -35,6 +35,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.shape.CircleShape
@@ -42,6 +44,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.linknest.core.designsystem.component.GlassPanel
 import com.linknest.core.designsystem.component.LinkNestGradientBackground
+import com.linknest.core.designsystem.labelResource
 import com.linknest.core.model.HealthReportItem
 import com.linknest.core.model.HealthStatus
 
@@ -87,10 +90,10 @@ private fun HealthReportScreen(
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 TopAppBar(
-                    title = { Text("Health Report") },
+                    title = { Text(stringResource(R.string.settings_health_report)) },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Go back")
+                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.settings_go_back))
                         }
                     },
                 )
@@ -106,31 +109,38 @@ private fun HealthReportScreen(
                 item {
                     GlassPanel {
                         Text(
-                            text = "Legend",
+                            text = stringResource(R.string.settings_legend),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
                         )
                         androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(12.dp))
-                        LegendRow(Color(0xFF4CAF50), "Green = Good health")
-                        LegendRow(Color(0xFFFFC107), "Yellow = Blocked / use VPN / login / caution")
-                        LegendRow(MaterialTheme.colorScheme.error, "Red = Not good health / dead / unreachable")
+                        LegendRow(Color(0xFF4CAF50), stringResource(R.string.settings_good_health_legend))
+                        LegendRow(Color(0xFFFFC107), stringResource(R.string.settings_caution_legend))
+                        LegendRow(MaterialTheme.colorScheme.error, stringResource(R.string.settings_failed_health_legend))
                         androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(12.dp))
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(onClick = onRunHealthCheck, enabled = !uiState.isRunning) {
                                 if (uiState.isRunning) {
                                     CircularProgressIndicator(strokeWidth = 2.dp)
                                 } else {
-                                    Text("Run Health Check")
+                                    Text(stringResource(R.string.settings_run_health_check))
                                 }
                             }
                             OutlinedButton(onClick = onRefresh, enabled = !uiState.isRunning) {
-                                Text("Refresh Report")
+                                Text(stringResource(R.string.settings_refresh_report))
                             }
                         }
                         uiState.summary?.let { summary ->
                             androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(12.dp))
                             Text(
-                                text = summary,
+                                text = stringResource(
+                                    R.string.settings_health_result,
+                                    pluralStringResource(R.plurals.settings_checked_links, summary.checkedCount, summary.checkedCount),
+                                    summary.okCount,
+                                    summary.blockedCount + summary.redirectedCount + summary.loginRequiredCount +
+                                        summary.dnsFailedCount + summary.sslIssueCount,
+                                    summary.deadCount + summary.timeoutCount,
+                                ),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -172,7 +182,7 @@ private fun HealthReportScreen(
                                     }
                                 }
                                 Text(
-                                    text = item.status.userFacingLabel,
+                                    text = stringResource(item.status.labelResource),
                                     color = item.status.userFacingColor(MaterialTheme.colorScheme.error),
                                     style = MaterialTheme.typography.labelLarge,
                                 )
@@ -201,19 +211,6 @@ private fun LegendRow(color: Color, label: String) {
         Text(text = label, style = MaterialTheme.typography.bodySmall)
     }
 }
-
-private val HealthStatus.userFacingLabel: String
-    get() = when (this) {
-        HealthStatus.OK -> "Good"
-        HealthStatus.BLOCKED -> "Blocked"
-        HealthStatus.LOGIN_REQUIRED -> "Login"
-        HealthStatus.REDIRECTED -> "Redirected"
-        HealthStatus.DNS_FAILED -> "DNS failed"
-        HealthStatus.SSL_ISSUE -> "TLS issue"
-        HealthStatus.DEAD -> "Dead"
-        HealthStatus.TIMEOUT -> "Timeout"
-        HealthStatus.UNKNOWN -> "Unknown"
-    }
 
 @Composable
 private fun HealthStatus.userFacingColor(errorColor: Color): Color = when (this) {

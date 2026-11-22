@@ -1,5 +1,6 @@
 package com.linknest.feature.addedit
 
+import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -27,6 +28,7 @@ import com.linknest.core.model.SmartCaptureResult
 import com.linknest.core.model.TagModel
 import com.linknest.core.model.WebsitePriority
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -78,20 +80,18 @@ data class AddEditUiState(
     val isEditMode: Boolean
         get() = existingWebsiteId != null
 
-    val submitLabel: String
-        get() = if (isEditMode) "Inspect & Save Changes" else "Inspect & Save"
-
-    val phaseLabel: String?
+    @get:androidx.annotation.StringRes
+    val phaseLabelResource: Int?
         get() = when (phase) {
             AddWebsitePhase.IDLE -> null
-            AddWebsitePhase.SECURING_URL -> "Securing URL"
-            AddWebsitePhase.INSPECTING_WEBSITE -> "Inspecting website"
-            AddWebsitePhase.SUGGESTING_CATEGORY -> "Resolving category"
-            AddWebsitePhase.RUNNING_SMART_CAPTURE -> "Building smart suggestions"
-            AddWebsitePhase.REVIEWING_DUPLICATES -> "Reviewing duplicates"
-            AddWebsitePhase.RESOLVING_ICON -> "Resolving icon"
-            AddWebsitePhase.SAVING -> "Saving"
-            AddWebsitePhase.SUCCESS -> "Saved"
+            AddWebsitePhase.SECURING_URL -> R.string.addedit_phase_securing_url
+            AddWebsitePhase.INSPECTING_WEBSITE -> R.string.addedit_phase_inspecting_website
+            AddWebsitePhase.SUGGESTING_CATEGORY -> R.string.addedit_phase_suggesting_category
+            AddWebsitePhase.RUNNING_SMART_CAPTURE -> R.string.addedit_phase_running_smart_capture
+            AddWebsitePhase.REVIEWING_DUPLICATES -> R.string.addedit_phase_reviewing_duplicates
+            AddWebsitePhase.RESOLVING_ICON -> R.string.addedit_phase_resolving_icon
+            AddWebsitePhase.SAVING -> R.string.addedit_phase_saving
+            AddWebsitePhase.SUCCESS -> R.string.addedit_phase_success
         }
 }
 
@@ -121,6 +121,7 @@ class AddEditViewModel @Inject constructor(
     private val normalizeUrlAction: NormalizeUrlAction,
     private val suggestCategoryAction: SuggestCategoryAction,
     private val addWebsitePipeline: AddWebsitePipeline,
+    @param:ApplicationContext private val context: Context,
 ) : ViewModel() {
     private val existingWebsiteId = savedStateHandle.get<Long>(ADD_EDIT_WEBSITE_ID_ARG)?.takeIf { it > 0L }
     private val urlFlow = MutableStateFlow(savedStateHandle.get<String>(ADD_EDIT_URL_ARG).orEmpty())
@@ -178,7 +179,7 @@ class AddEditViewModel @Inject constructor(
                     // The edit target was deleted (e.g. stale deep link / widget). Don't silently
                     // fall back to a blank Add form — tell the user and close the screen.
                     _uiState.update {
-                        it.copy(userMessage = "That website no longer exists.", saveCompleted = true)
+                        it.copy(userMessage = context.getString(R.string.addedit_missing_website), saveCompleted = true)
                     }
                     return@launch
                 }
@@ -248,13 +249,13 @@ class AddEditViewModel @Inject constructor(
                     updateFormState {
                         it.copy(
                             selectedCategoryId = created.id,
-                            userMessage = "Category ${created.name} created.",
+                            userMessage = context.getString(R.string.addedit_category_created, created.name),
                         )
                     }
                 }
                 .onFailure { throwable ->
                     _uiState.update {
-                        it.copy(userMessage = throwable.message ?: "Unable to create category.")
+                        it.copy(userMessage = throwable.message ?: context.getString(R.string.addedit_category_failed))
                     }
                 }
         }
@@ -284,7 +285,7 @@ class AddEditViewModel @Inject constructor(
         viewModelScope.launch {
             val resolvedTag = addTagUseCase(tagDraft)
             if (resolvedTag == null) {
-                _uiState.update { it.copy(userMessage = "Unable to create tag.") }
+                _uiState.update { it.copy(userMessage = context.getString(R.string.addedit_tag_failed)) }
                 return@launch
             }
             onSelectTag(resolvedTag.name)
@@ -347,14 +348,14 @@ class AddEditViewModel @Inject constructor(
         val state = uiState.value
         if (state.isSubmitting) return
         if (state.rawUrl.isBlank()) {
-            _uiState.update { it.copy(userMessage = "Enter a website URL first.") }
+            _uiState.update { it.copy(userMessage = context.getString(R.string.addedit_url_required)) }
             return
         }
 
         val revisitAt = parseRevisitDate(state.revisitDateInput)
         if (state.revisitDateInput.isNotBlank() && revisitAt == null) {
             _uiState.update {
-                it.copy(userMessage = "Use YYYY-MM-DD for revisit date.")
+                it.copy(userMessage = context.getString(R.string.addedit_invalid_date))
             }
             return
         }

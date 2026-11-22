@@ -74,6 +74,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.linknest.core.designsystem.component.GlassPanel
 import com.linknest.core.designsystem.component.LinkNestGradientBackground
+import com.linknest.core.designsystem.labelResource
 import com.linknest.core.model.FollowUpStatus
 import com.linknest.core.model.HealthStatus
 import com.linknest.core.model.RecentQuery
@@ -208,21 +209,22 @@ private fun SearchScreen(
                 snackbarHost = { SnackbarHost(snackbarHostState) },
                 topBar = {
                     TopAppBar(
-                        title = { Text("Search & Collections") },
+                        title = { Text(stringResource(R.string.search_title)) },
                         navigationIcon = {
                             IconButton(onClick = onBack) {
-                                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Go back")
+                                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.search_back))
                             }
                         },
                         actions = {
+                            val filterState = stringResource(if (filtersExpanded || filtersAlwaysVisible) R.string.search_expanded else R.string.search_collapsed)
                             IconButton(
                                 enabled = !filtersAlwaysVisible,
                                 modifier = Modifier.semantics {
-                                    stateDescription = if (filtersExpanded || filtersAlwaysVisible) "Expanded" else "Collapsed"
+                                    stateDescription = filterState
                                 },
                                 onClick = { filtersExpanded = !filtersExpanded },
                             ) {
-                                Icon(Icons.Rounded.FilterAlt, contentDescription = "Toggle filters")
+                                Icon(Icons.Rounded.FilterAlt, contentDescription = stringResource(R.string.search_toggle_filters))
                             }
                         },
                     )
@@ -251,8 +253,8 @@ private fun SearchScreen(
                                             .fillMaxWidth()
                                             .focusRequester(queryFocusRequester),
                                         leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
-                                        label = { Text("Offline search") },
-                                        placeholder = { Text("Search titles, domains, categories, tags, and notes") },
+                                        label = { Text(stringResource(R.string.search_offline)) },
+                                        placeholder = { Text(stringResource(R.string.search_hint)) },
                                         singleLine = true,
                                     )
                                 }
@@ -313,9 +315,9 @@ private fun SearchScreen(
                                 GlassPanel {
                                     Text(
                                         text = if (uiState.query.isBlank() && !uiState.hasActiveFilters) {
-                                            "Use smart collections, recent queries, or saved searches to reopen focused slices of your library."
+                                            stringResource(R.string.search_empty_intro)
                                         } else {
-                                            "No websites matched the current search and filter combination."
+                                            stringResource(R.string.search_no_results)
                                         },
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -345,7 +347,7 @@ private fun SmartCollectionRow(
 ) {
     GlassPanel {
         Text(
-            text = "Smart Collections",
+            text = stringResource(R.string.search_smart_collections),
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
         )
@@ -355,12 +357,13 @@ private fun SmartCollectionRow(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             SearchSmartCollection.entries.forEach { collection ->
-                val collectionDescription = stringResource(R.string.search_smart_collection_description, collection.label)
+                val label = stringResource(collection.labelResource)
+                val collectionDescription = stringResource(R.string.search_smart_collection_description, label)
                 FilterChip(
                     modifier = Modifier.semantics { contentDescription = collectionDescription },
                     selected = activeCollection == collection,
                     onClick = { onApplySmartCollection(collection) },
-                    label = { Text(collection.label, modifier = Modifier.clearAndSetSemantics {}) },
+                    label = { Text(label, modifier = Modifier.clearAndSetSemantics {}) },
                     leadingIcon = {
                         Icon(
                             imageVector = when (collection) {
@@ -394,18 +397,18 @@ private fun SavedFiltersPanel(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "Saved Searches",
+                text = stringResource(R.string.search_saved_searches),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
             )
             OutlinedButton(onClick = onSaveCurrentFilter) {
-                Text("Save Search")
+                Text(stringResource(R.string.search_save_search))
             }
         }
         Spacer(modifier = Modifier.height(10.dp))
         if (savedFilters.isEmpty()) {
             Text(
-                text = "No saved searches yet.",
+                text = stringResource(R.string.search_no_saved_searches),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -422,7 +425,7 @@ private fun SavedFiltersPanel(
                         trailingIcon = {
                             IconButton(onClick = { onDeleteSavedFilter(filter.id) }) { Icon(
                                 imageVector = Icons.Rounded.ClearAll,
-                                contentDescription = "Delete filter",
+                                contentDescription = stringResource(R.string.search_delete_filter),
                             ) }
                         },
                     )
@@ -454,12 +457,12 @@ private fun SearchSuggestionsPanel(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "Recent Queries",
+                    text = stringResource(R.string.search_recent_queries),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
                 TextButton(onClick = onClearRecentQueries) {
-                    Text("Clear History")
+                    Text(stringResource(R.string.search_clear_history))
                 }
             }
             FlowRow(
@@ -487,7 +490,7 @@ private fun SearchSuggestionsPanel(
 
         if (showSuggestions) {
             Text(
-                text = "Suggestions",
+                text = stringResource(R.string.search_suggestions),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -545,26 +548,26 @@ private fun SearchFilterPanel(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "Filter Builder",
+                text = stringResource(R.string.search_filter_builder),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
             )
             TextButton(onClick = onClearFilters, enabled = uiState.hasActiveFilters) {
-                Text("Clear")
+                Text(stringResource(R.string.search_clear))
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
         FilterSection(
-            title = "Quick Flags",
+            title = stringResource(R.string.search_quick_flags),
             content = {
-                ToggleChip("Pinned", uiState.pinnedOnly) { onPinnedOnlyChanged(!uiState.pinnedOnly) }
-                ToggleChip("Recent", uiState.recentOnly) { onRecentOnlyChanged(!uiState.recentOnly) }
-                ToggleChip("Duplicates", uiState.duplicatesOnly) { onDuplicatesOnlyChanged(!uiState.duplicatesOnly) }
-                ToggleChip("Needs Attention", uiState.includeNeedsAttention) { onNeedsAttentionChanged(!uiState.includeNeedsAttention) }
+                ToggleChip(stringResource(R.string.search_pinned), uiState.pinnedOnly) { onPinnedOnlyChanged(!uiState.pinnedOnly) }
+                ToggleChip(stringResource(R.string.search_recent), uiState.recentOnly) { onRecentOnlyChanged(!uiState.recentOnly) }
+                ToggleChip(stringResource(R.string.search_duplicates), uiState.duplicatesOnly) { onDuplicatesOnlyChanged(!uiState.duplicatesOnly) }
+                ToggleChip(stringResource(R.string.search_needs_attention), uiState.includeNeedsAttention) { onNeedsAttentionChanged(!uiState.includeNeedsAttention) }
             },
         )
         FilterSection(
-            title = "Categories",
+            title = stringResource(R.string.search_categories),
             content = {
                 uiState.availableCategories.forEach { category ->
                     ToggleChip(
@@ -575,7 +578,7 @@ private fun SearchFilterPanel(
             },
         )
         FilterSection(
-            title = "Tags",
+            title = stringResource(R.string.search_tags),
             content = {
                 uiState.availableTags.take(18).forEach { tag ->
                     ToggleChip(
@@ -586,12 +589,12 @@ private fun SearchFilterPanel(
             },
         )
         FilterSection(
-            title = "Health",
+            title = stringResource(R.string.search_health),
             content = {
                 HealthStatus.entries.forEach { status ->
                     if (status != HealthStatus.UNKNOWN) {
                         ToggleChip(
-                            label = status.displayName,
+                            label = stringResource(status.labelResource),
                             selected = status in uiState.selectedHealthStatuses,
                         ) { onToggleHealthStatus(status) }
                     }
@@ -599,23 +602,23 @@ private fun SearchFilterPanel(
             },
         )
         FilterSection(
-            title = "Priority",
+            title = stringResource(R.string.search_priority),
             content = {
                 WebsitePriority.entries.forEach { priority ->
                     ToggleChip(
-                        label = priority.displayName,
+                        label = stringResource(priority.labelResource),
                         selected = priority in uiState.selectedPriorities,
                     ) { onTogglePriority(priority) }
                 }
             },
         )
         FilterSection(
-            title = "Follow-up",
+            title = stringResource(R.string.search_follow_up),
             content = {
                 FollowUpStatus.entries.forEach { status ->
                     if (status != FollowUpStatus.NONE) {
                         ToggleChip(
-                            label = status.displayName,
+                            label = stringResource(status.labelResource),
                             selected = status in uiState.selectedFollowUpStatuses,
                         ) { onToggleFollowUpStatus(status) }
                     }
@@ -700,14 +703,14 @@ private fun SearchGroup(
                         }
                         if (item.matchedFields.isNotEmpty()) {
                             Text(
-                                text = "Matched: ${item.matchedFields.joinToString()}",
+                                text = stringResource(R.string.search_matched_fields, item.matchedFields.map { field -> matchedFieldLabel(field) }.joinToString()),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.secondary,
                             )
                         }
                     }
                     Text(
-                        text = item.healthStatus.displayName,
+                        text = stringResource(item.healthStatus.labelResource),
                         style = MaterialTheme.typography.labelMedium,
                         color = item.healthStatus.color,
                     )
@@ -725,24 +728,24 @@ private fun SaveFilterDialog(
     var name by rememberSaveable { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Save current filter") },
+        title = { Text(stringResource(R.string.search_save_filter_title)) },
         text = {
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Filter name") },
+                label = { Text(stringResource(R.string.search_filter_name)) },
                 singleLine = true,
             )
         },
         confirmButton = {
             TextButton(onClick = { onSave(name) }) {
-                Text("Save")
+                Text(stringResource(R.string.search_save))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(R.string.search_cancel))
             }
         },
     )
@@ -762,3 +765,19 @@ private val HealthStatus.color: Color
         -> Color(0xFFEF5350)
         HealthStatus.UNKNOWN -> Color(0xFF90A4AE)
     }
+
+@Composable
+private fun matchedFieldLabel(field: String): String = when (field) {
+    "title" -> stringResource(R.string.search_match_title)
+    "domain" -> stringResource(R.string.search_match_domain)
+    "url" -> stringResource(R.string.search_match_url)
+    "final" -> stringResource(R.string.search_match_final)
+    "category" -> stringResource(R.string.search_match_category)
+    "tag" -> stringResource(R.string.search_match_tag)
+    "note" -> stringResource(R.string.search_match_note)
+    "pinned" -> stringResource(R.string.search_match_pinned)
+    "duplicate" -> stringResource(R.string.search_match_duplicate)
+    "follow-up" -> stringResource(R.string.search_match_follow_up)
+    "priority" -> stringResource(R.string.search_match_priority)
+    else -> field
+}

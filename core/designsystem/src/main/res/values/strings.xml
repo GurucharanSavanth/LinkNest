@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ui_health_unknown">Unknown</string>
+    <string name="ui_health_ok">Good</string>
+    <string name="ui_health_login_required">Login required</string>
+    <string name="ui_health_blocked">Blocked</string>
+    <string name="ui_health_redirected">Redirected</string>
+    <string name="ui_health_dns_failed">DNS failed</string>
+    <string name="ui_health_ssl_issue">TLS issue</string>
+    <string name="ui_health_dead">Dead</string>
+    <string name="ui_health_timeout">Timeout</string>
+    <string name="ui_priority_low">Low</string>
+    <string name="ui_priority_normal">Normal</string>
+    <string name="ui_priority_high">High</string>
+    <string name="ui_priority_critical">Critical</string>
+    <string name="ui_follow_up_none">None</string>
+    <string name="ui_follow_up_review">Needs review</string>
+    <string name="ui_follow_up_in_progress">In progress</string>
+    <string name="ui_follow_up_waiting">Waiting</string>
+    <string name="ui_follow_up_done">Done</string>
+    <string name="ui_category_purple">Purple color</string>
+    <string name="ui_category_cyan">Cyan color</string>
+    <string name="ui_category_green">Green color</string>
+    <string name="ui_category_orange">Orange color</string>
+    <string name="ui_category_pink">Pink color</string>
+    <string name="ui_category_yellow">Yellow color</string>
+    <string name="ui_category_brain">Brain icon</string>
+    <string name="ui_category_folder">Folder icon</string>
+    <string name="ui_category_rocket">Rocket icon</string>
+    <string name="ui_category_art">Art icon</string>
+    <string name="ui_category_briefcase">Briefcase icon</string>
+    <string name="ui_category_globe">Globe icon</string>
+</resources>

@@ -1,5 +1,6 @@
 package com.linknest.feature.dashboard
 
+import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -22,9 +23,14 @@ import com.linknest.core.data.usecase.ObserveDashboardUseCase
 import com.linknest.core.data.usecase.SeedDefaultCategoryUseCase
 import com.linknest.core.data.usecase.ToggleCategoryCollapsedUseCase
 import com.linknest.core.data.usecase.UpdateLayoutModeUseCase
+import com.linknest.core.designsystem.labelResource
 import com.linknest.core.model.DashboardModel
+import com.linknest.core.model.FollowUpStatus
 import com.linknest.core.model.LayoutMode
+import com.linknest.core.model.WebsiteListItem
+import com.linknest.core.model.WebsitePriority
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,6 +56,7 @@ data class DashboardUiState(
 @OptIn(FlowPreview::class)
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
+    @param:ApplicationContext private val appContext: Context,
     private val savedStateHandle: SavedStateHandle,
     observeDashboardUseCase: ObserveDashboardUseCase,
     private val seedDefaultCategoryUseCase: SeedDefaultCategoryUseCase,
@@ -116,7 +123,7 @@ class DashboardViewModel @Inject constructor(
                 toggleCategoryCollapsedUseCase(categoryId)
             }.onFailure { throwable ->
                 _uiState.update {
-                    it.copy(userMessage = throwable.message ?: "Unable to update category state.")
+                    it.copy(userMessage = throwable.message ?: appContext.getString(R.string.dashboard_update_category_failed))
                 }
             }
         }
@@ -138,7 +145,7 @@ class DashboardViewModel @Inject constructor(
 
     fun onMoveCategoryToIndex(categoryId: Long, targetIndex: Int) {
         if (uiState.value.searchQuery.isNotBlank()) {
-            _uiState.update { it.copy(userMessage = "Clear search before reordering.") }
+            _uiState.update { it.copy(userMessage = appContext.getString(R.string.dashboard_clear_search_before_reordering)) }
             return
         }
         val current = uiState.value.dashboard.categories.map { it.id }.toMutableList()
@@ -168,7 +175,7 @@ class DashboardViewModel @Inject constructor(
 
     fun onMoveWebsiteToIndex(categoryId: Long, websiteId: Long, targetIndex: Int) {
         if (uiState.value.searchQuery.isNotBlank()) {
-            _uiState.update { it.copy(userMessage = "Clear search before reordering.") }
+            _uiState.update { it.copy(userMessage = appContext.getString(R.string.dashboard_clear_search_before_reordering)) }
             return
         }
         val category = uiState.value.dashboard.categories.firstOrNull { it.id == categoryId } ?: return
@@ -290,7 +297,7 @@ class DashboardViewModel @Inject constructor(
 
     private fun refreshDisplayedDashboard() {
         if (!hasLoadedDashboard) return
-        val query = _uiState.value.searchQuery.trim().lowercase()
+        val query = _uiState.value.searchQuery.trim()
         val dashboard = if (query.isBlank()) {
             sourceDashboard
         } else {
@@ -308,12 +315,18 @@ class DashboardViewModel @Inject constructor(
         dashboard: DashboardModel,
         query: String,
     ): DashboardModel {
+        val priorities = WebsitePriority.entries.filter {
+            it.displayName.contains(query, ignoreCase = true) || appContext.getString(it.labelResource).contains(query, ignoreCase = true)
+        }
+        val followUps = FollowUpStatus.entries.filter {
+            it.displayName.contains(query, ignoreCase = true) || appContext.getString(it.labelResource).contains(query, ignoreCase = true)
+        }
+        fun matches(website: WebsiteListItem) =
+            website.priority in priorities || website.followUpStatus in followUps || website.matchesDashboardQuery(query)
+
         val filteredCategories = dashboard.categories.mapNotNull { category ->
-            val categoryMatches = category.name.lowercase().contains(query)
-            val filteredWebsites = category.websites.filter { website ->
-                categoryMatches ||
-                    website.matchesDashboardQuery(query)
-            }
+            val categoryMatches = category.name.contains(query, ignoreCase = true)
+            val filteredWebsites = if (categoryMatches) category.websites else category.websites.filter(::matches)
             if (categoryMatches || filteredWebsites.isNotEmpty()) {
                 category.copy(websites = filteredWebsites)
             } else {
@@ -322,9 +335,7 @@ class DashboardViewModel @Inject constructor(
         }
         val filteredSections = dashboard.smartSections.map { section ->
             section.copy(
-                websites = section.websites.filter { website ->
-                    website.matchesDashboardQuery(query)
-                },
+                websites = section.websites.filter(::matches),
             )
         }.filter { it.websites.isNotEmpty() }
 

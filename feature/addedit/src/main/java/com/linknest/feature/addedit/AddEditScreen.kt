@@ -43,7 +43,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -64,6 +63,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.selected
@@ -73,8 +74,12 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import com.linknest.core.designsystem.categoryColorOptions
+import com.linknest.core.designsystem.categoryIconOptions
 import com.linknest.core.designsystem.component.GlassPanel
 import com.linknest.core.designsystem.component.LinkNestGradientBackground
+import com.linknest.core.designsystem.component.rememberFullyExpandedSheetState
+import com.linknest.core.designsystem.labelResource
 import com.linknest.core.model.AddWebsitePhase
 import com.linknest.core.model.CategoryDraft
 import com.linknest.core.model.DuplicateCheckResult
@@ -87,16 +92,6 @@ import com.linknest.core.model.SelectableCategory
 import com.linknest.core.model.SmartCaptureResult
 import com.linknest.core.model.TagModel
 import com.linknest.core.model.WebsitePriority
-
-private val CategoryColors = listOf(
-    "#7C4DFF",
-    "#00BCD4",
-    "#4CAF50",
-    "#FF9800",
-    "#F06292",
-    "#FFD54F",
-)
-private val CategoryIcons = listOf("🧠", "📁", "🚀", "🎨", "💼", "🌐")
 
 @Composable
 fun AddEditRoute(
@@ -218,10 +213,10 @@ private fun AddEditScreen(
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 TopAppBar(
-                    title = { Text(if (uiState.isEditMode) "Edit Website" else "Add Website") },
+                    title = { Text(if (uiState.isEditMode) stringResource(R.string.addedit_edit_title) else stringResource(R.string.addedit_add_title)) },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Go back")
+                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.addedit_back))
                         }
                     },
                 )
@@ -236,10 +231,10 @@ private fun AddEditScreen(
             ) {
                 item {
                     GlassPanel {
-                        Text("URL input", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.addedit_url_input), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Enter any URL. HTTPS is suggested for web links. Non-standard schemes will be stored as-is.",
+                            text = stringResource(R.string.addedit_url_help),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -247,12 +242,13 @@ private fun AddEditScreen(
                         OutlinedTextField(
                             value = uiState.rawUrl,
                             onValueChange = onUrlChanged,
-                            label = { Text("Website URL") },
-                            leadingIcon = { Icon(Icons.Rounded.Link, contentDescription = "Link icon") },
+                            label = { Text(stringResource(R.string.addedit_url)) },
+                            leadingIcon = { Icon(Icons.Rounded.Link, contentDescription = null) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                         )
-                        uiState.phaseLabel?.let { phaseLabel ->
+                        uiState.phaseLabelResource?.let { phaseResource ->
+                            val phaseLabel = stringResource(phaseResource)
                             Spacer(modifier = Modifier.height(12.dp))
                             LinearProgressIndicator(modifier = Modifier.fillMaxWidth().semantics { contentDescription = phaseLabel })
                             Spacer(modifier = Modifier.height(8.dp))
@@ -263,7 +259,7 @@ private fun AddEditScreen(
 
                 item {
                     GlassPanel {
-                        Text("Category", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.addedit_category), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(modifier = Modifier.height(12.dp))
                         CategoryPicker(
                             categories = uiState.categories,
@@ -276,14 +272,14 @@ private fun AddEditScreen(
                             verticalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
                             TextButton(onClick = { categorySheetOpen = true }) {
-                                Icon(Icons.Rounded.Add, contentDescription = "Add category")
+                                Icon(Icons.Rounded.Add, contentDescription = null)
                                 Spacer(modifier = Modifier.size(8.dp))
-                                Text("Create category")
+                                Text(stringResource(R.string.addedit_create_category))
                             }
                             uiState.suggestedCategory?.let { suggestion ->
                                 AssistChip(
                                     onClick = onUseSuggestedCategory,
-                                    label = { Text("Suggested: ${suggestion.categoryName}") },
+                                    label = { Text(stringResource(R.string.addedit_suggested, suggestion.categoryName)) },
                                 )
                             }
                         }
@@ -311,29 +307,31 @@ private fun AddEditScreen(
 
                 item {
                     GlassPanel {
-                        Text("Tags", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.addedit_tags), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(modifier = Modifier.height(12.dp))
+                        val tagInputLabel = stringResource(R.string.addedit_search_tags)
                         OutlinedTextField(
                             value = uiState.tagDraft,
                             onValueChange = onTagDraftChanged,
-                            modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Search or create tags" },
+                            modifier = Modifier.fillMaxWidth().semantics { contentDescription = tagInputLabel },
                             leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
-                            label = { Text("Search or create tags") },
+                            label = { Text(tagInputLabel) },
                             singleLine = true,
                         )
                         Spacer(modifier = Modifier.height(10.dp))
                         if (uiState.selectedTags.isNotEmpty()) {
-                            Text("Selected tags", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(R.string.addedit_selected_tags), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(modifier = Modifier.height(8.dp))
                             FlowRow(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
                                 uiState.selectedTags.forEach { tag ->
+                                    val removeTagLabel = stringResource(R.string.addedit_remove_tag, tag)
                                     FilterChip(
                                         selected = true,
                                         onClick = { onRemoveTag(tag) },
-                                        modifier = Modifier.semantics { onClick(label = "Remove tag $tag", action = null) },
+                                        modifier = Modifier.semantics { onClick(label = removeTagLabel, action = null) },
                                         label = { Text(tag) },
                                     )
                                 }
@@ -349,7 +347,7 @@ private fun AddEditScreen(
                         }
                         if (visibleExistingTags.isNotEmpty()) {
                             Text(
-                                text = if (uiState.tagSuggestions.isNotEmpty()) "Matching tags" else "Existing tags",
+                                text = if (uiState.tagSuggestions.isNotEmpty()) stringResource(R.string.addedit_matching_tags) else stringResource(R.string.addedit_existing_tags),
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -371,9 +369,9 @@ private fun AddEditScreen(
                             uiState.selectedTags.none { it.equals(uiState.tagDraft.trim(), ignoreCase = true) }
                         ) {
                         TextButton(onClick = onCreateTag) {
-                                Icon(Icons.Rounded.Add, contentDescription = "Create tag")
+                                Icon(Icons.Rounded.Add, contentDescription = null)
                                 Spacer(modifier = Modifier.size(8.dp))
-                                Text("Create tag \"${uiState.tagDraft.trim()}\"")
+                                Text(stringResource(R.string.addedit_create_tag, uiState.tagDraft.trim()))
                             }
                         }
                     }
@@ -417,7 +415,7 @@ private fun AddEditScreen(
                                 Spacer(modifier = Modifier.size(8.dp))
                             }
                         }
-                        Text(uiState.submitLabel)
+                        Text(stringResource(if (uiState.isEditMode) R.string.addedit_save_changes else R.string.addedit_save))
                     }
                 }
             }
@@ -432,20 +430,20 @@ private fun DiscardChangesDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Discard changes?") },
+        title = { Text(stringResource(R.string.addedit_discard_title)) },
         text = {
             Text(
-                "You have unsaved changes in this form. If you leave now, LinkNest will discard them.",
+                stringResource(R.string.addedit_discard_body),
             )
         },
         confirmButton = {
             TextButton(onClick = onDiscardChanges) {
-                Text("Discard")
+                Text(stringResource(R.string.addedit_discard))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Keep editing")
+                Text(stringResource(R.string.addedit_keep_editing))
             }
         },
     )
@@ -463,13 +461,13 @@ private fun WebsiteMetadataCard(
     onRevisitDateChanged: (String) -> Unit,
 ) {
     GlassPanel {
-        Text("Notes and follow-up", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.addedit_notes_follow_up), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(modifier = Modifier.height(12.dp))
         OutlinedTextField(
             value = uiState.note,
             onValueChange = onNoteChanged,
             modifier = Modifier.fillMaxWidth(),
-            label = { Text("Note or annotation") },
+            label = { Text(stringResource(R.string.addedit_note)) },
             minLines = 3,
         )
         Spacer(modifier = Modifier.height(12.dp))
@@ -477,7 +475,7 @@ private fun WebsiteMetadataCard(
             value = uiState.reasonSaved,
             onValueChange = onReasonSavedChanged,
             modifier = Modifier.fillMaxWidth(),
-            label = { Text("Why this was saved") },
+            label = { Text(stringResource(R.string.addedit_why_saved)) },
             minLines = 2,
         )
         Spacer(modifier = Modifier.height(12.dp))
@@ -485,7 +483,7 @@ private fun WebsiteMetadataCard(
             value = uiState.sourceLabel,
             onValueChange = onSourceLabelChanged,
             modifier = Modifier.fillMaxWidth(),
-            label = { Text("Source label") },
+            label = { Text(stringResource(R.string.addedit_source_label)) },
             singleLine = true,
         )
         Spacer(modifier = Modifier.height(12.dp))
@@ -493,18 +491,18 @@ private fun WebsiteMetadataCard(
             value = uiState.customLabel,
             onValueChange = onCustomLabelChanged,
             modifier = Modifier.fillMaxWidth(),
-            label = { Text("Custom label") },
+            label = { Text(stringResource(R.string.addedit_custom_label)) },
             singleLine = true,
         )
         Spacer(modifier = Modifier.height(12.dp))
-        Text("Priority", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(R.string.addedit_priority), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(modifier = Modifier.height(8.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             WebsitePriority.entries.forEach { priority ->
                 FilterChip(
                     selected = uiState.priority == priority,
                     onClick = { onPrioritySelected(priority) },
-                    label = { Text(priority.displayName) },
+                    label = { Text(stringResource(priority.labelResource)) },
                     leadingIcon = {
                         if (priority == WebsitePriority.CRITICAL) {
                             Icon(Icons.Rounded.PriorityHigh, contentDescription = null)
@@ -514,14 +512,14 @@ private fun WebsiteMetadataCard(
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
-        Text("Follow-up", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(R.string.addedit_follow_up), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(modifier = Modifier.height(8.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             FollowUpStatus.entries.forEach { status ->
                 FilterChip(
                     selected = uiState.followUpStatus == status,
                     onClick = { onFollowUpStatusSelected(status) },
-                    label = { Text(status.displayName) },
+                    label = { Text(stringResource(status.labelResource)) },
                 )
             }
         }
@@ -530,7 +528,7 @@ private fun WebsiteMetadataCard(
             value = uiState.revisitDateInput,
             onValueChange = onRevisitDateChanged,
             modifier = Modifier.fillMaxWidth(),
-            label = { Text("Revisit date (YYYY-MM-DD)") },
+            label = { Text(stringResource(R.string.addedit_revisit_date)) },
             singleLine = true,
         )
     }
@@ -543,16 +541,16 @@ private fun SmartCaptureCard(
     alreadySelectedTags: List<String>,
 ) {
     GlassPanel {
-        Text("Smart capture", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.addedit_smart_capture), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         smartCapture.cleanedTitle?.let { cleanedTitle ->
             Spacer(modifier = Modifier.height(12.dp))
-            Text("Title cleanup suggestion", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.addedit_clean_title), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(modifier = Modifier.height(4.dp))
             Text(cleanedTitle, fontWeight = FontWeight.Medium)
         }
         if (smartCapture.suggestedTags.isNotEmpty()) {
             Spacer(modifier = Modifier.height(12.dp))
-            Text("Suggested tags", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.addedit_suggested_tags), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(modifier = Modifier.height(8.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 smartCapture.suggestedTags.forEach { tag ->
@@ -567,7 +565,7 @@ private fun SmartCaptureCard(
         }
         smartCapture.finalUrl?.let { finalUrl ->
             Spacer(modifier = Modifier.height(12.dp))
-            Text("Resolved destination", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.addedit_resolved_destination), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(modifier = Modifier.height(4.dp))
             Text(finalUrl, style = MaterialTheme.typography.bodyMedium)
         }
@@ -611,10 +609,10 @@ private fun DuplicateReviewCard(
     onResolveDuplicate: (DuplicateDecision) -> Unit,
 ) {
     GlassPanel {
-        Text("Possible duplicate", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.addedit_possible_duplicate), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "LinkNest found a similar saved website. Decide how to continue before persisting this entry.",
+            text = stringResource(R.string.addedit_duplicate_help),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -628,7 +626,7 @@ private fun DuplicateReviewCard(
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(match.title, fontWeight = FontWeight.SemiBold)
                     Text(match.normalizedUrl, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("${match.categoryName} · ${match.type.displayName}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    Text(stringResource(R.string.addedit_duplicate_description, match.categoryName, stringResource(match.type.labelResource)), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
@@ -637,7 +635,7 @@ private fun DuplicateReviewCard(
             DuplicateDecision.entries.forEach { decision ->
                 AssistChip(
                     onClick = { onResolveDuplicate(decision) },
-                    label = { Text(decision.displayName) },
+                    label = { Text(stringResource(decision.labelResource)) },
                 )
             }
         }
@@ -676,7 +674,7 @@ private fun CategoryPicker(
                         Text(selectedCategory.iconValue ?: selectedCategory.name.take(1))
                     }
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Selected category", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.addedit_selected_category), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(selectedCategory.name, fontWeight = FontWeight.SemiBold)
                     }
                 }
@@ -684,13 +682,13 @@ private fun CategoryPicker(
         }
         if (categories.isEmpty()) {
             Text(
-                text = "Create a category to organize this website.",
+                text = stringResource(R.string.addedit_new_category_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             return
         }
-        Text("Existing categories", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(R.string.addedit_existing_categories), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             categories.forEach { category ->
                 FilterChip(
@@ -711,12 +709,12 @@ private fun CreateCategorySheet(
     onCreateCategory: (CategoryDraft) -> Unit,
 ) {
     var name by rememberSaveable { mutableStateOf("") }
-    var colorHex by rememberSaveable { mutableStateOf(CategoryColors.first()) }
-    var iconValue by rememberSaveable { mutableStateOf(CategoryIcons.first()) }
+    var colorHex by rememberSaveable { mutableStateOf(categoryColorOptions.first().first) }
+    var iconValue by rememberSaveable { mutableStateOf(categoryIconOptions.first().first) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetState = rememberFullyExpandedSheetState(),
     ) {
         Column(
             modifier = Modifier
@@ -726,24 +724,22 @@ private fun CreateCategorySheet(
                 .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text("Create Category", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.addedit_create_category_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Category name") },
+                label = { Text(stringResource(R.string.addedit_category_name)) },
                 singleLine = true,
             )
-            Text("Color", fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.addedit_color), fontWeight = FontWeight.SemiBold)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                CategoryColors.forEach { candidate ->
+                categoryColorOptions.forEach { (candidate, labelResource) ->
+                    val label = stringResource(labelResource)
                     Surface(
                         modifier = Modifier
                             .size(48.dp)
-                            .semantics { contentDescription = when (candidate) {
-                                "#7C4DFF" -> "Purple"; "#00BCD4" -> "Cyan"; "#4CAF50" -> "Green"
-                                "#FF9800" -> "Orange"; "#F06292" -> "Pink"; else -> "Yellow"
-                            }; selected = candidate == colorHex }
+                            .semantics { contentDescription = label; selected = candidate == colorHex }
                             .clip(CircleShape)
                             .clickable { colorHex = candidate },
                         color = Color(candidate.toColorInt()),
@@ -751,13 +747,15 @@ private fun CreateCategorySheet(
                     ) {}
                 }
             }
-            Text("Icon", fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.addedit_icon), fontWeight = FontWeight.SemiBold)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                CategoryIcons.forEach { candidate ->
+                categoryIconOptions.forEach { (candidate, labelResource) ->
+                    val label = stringResource(labelResource)
                     FilterChip(
                         selected = candidate == iconValue,
                         onClick = { iconValue = candidate },
-                        label = { Text(candidate) },
+                        modifier = Modifier.semantics { contentDescription = label },
+                        label = { Text(candidate, modifier = Modifier.clearAndSetSemantics {}) },
                     )
                 }
             }
@@ -775,7 +773,7 @@ private fun CreateCategorySheet(
                 enabled = name.isNotBlank(),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("Create category")
+                Text(stringResource(R.string.addedit_create_category))
             }
             Spacer(modifier = Modifier.height(12.dp))
         }
@@ -788,7 +786,7 @@ private fun MetadataPreviewCard(
     smartCapture: SmartCaptureResult?,
 ) {
     GlassPanel {
-        Text("Inspection Preview", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.addedit_preview), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(modifier = Modifier.height(12.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -820,15 +818,15 @@ private fun MetadataPreviewCard(
                 Text(smartCapture?.cleanedTitle ?: preview.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
                 Text(preview.domain, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 preview.suggestedCategory?.let { suggestion ->
-                    Text("Suggested category: ${suggestion.categoryName}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                    Text(stringResource(R.string.addedit_suggested_category, suggestion.categoryName), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                 }
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
-        Text(text = "Normalized: ${preview.normalizedUrl}", style = MaterialTheme.typography.bodySmall)
+        Text(text = stringResource(R.string.addedit_normalized, preview.normalizedUrl), style = MaterialTheme.typography.bodySmall)
         preview.finalUrl?.takeIf { it != preview.normalizedUrl }?.let { finalUrl ->
             Spacer(modifier = Modifier.height(6.dp))
-            Text(text = "Final: $finalUrl", style = MaterialTheme.typography.bodySmall)
+            Text(text = stringResource(R.string.addedit_final_url, finalUrl), style = MaterialTheme.typography.bodySmall)
         }
         smartCapture?.iconConfidenceLabel?.let { label ->
             Spacer(modifier = Modifier.height(8.dp))
@@ -837,3 +835,23 @@ private fun MetadataPreviewCard(
     }
 }
 
+
+@get:androidx.annotation.StringRes
+private val DuplicateDecision.labelResource: Int
+    get() = when (this) {
+        DuplicateDecision.KEEP_BOTH -> R.string.addedit_duplicate_keep_both
+        DuplicateDecision.CANCEL_SAVE -> R.string.addedit_duplicate_cancel_save
+        DuplicateDecision.REPLACE_EXISTING -> R.string.addedit_duplicate_replace_existing
+        DuplicateDecision.MERGE_METADATA -> R.string.addedit_duplicate_merge_metadata
+        DuplicateDecision.MOVE_EXISTING -> R.string.addedit_duplicate_move_existing
+    }
+
+@get:androidx.annotation.StringRes
+private val DuplicateMatchType.labelResource: Int
+    get() = when (this) {
+        DuplicateMatchType.EXACT_URL -> R.string.addedit_duplicate_exact_url
+        DuplicateMatchType.NORMALIZED_URL -> R.string.addedit_duplicate_normalized_url
+        DuplicateMatchType.REDIRECTED_URL -> R.string.addedit_duplicate_redirected_url
+        DuplicateMatchType.EFFECTIVE_DESTINATION -> R.string.addedit_duplicate_effective_destination
+        DuplicateMatchType.TITLE_DOMAIN -> R.string.addedit_duplicate_title_domain
+    }

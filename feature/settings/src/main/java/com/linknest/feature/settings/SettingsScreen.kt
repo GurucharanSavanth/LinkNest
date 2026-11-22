@@ -1,5 +1,6 @@
 package com.linknest.feature.settings
 
+import android.text.format.Formatter
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -61,6 +62,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.linknest.core.designsystem.component.GlassPanel
 import com.linknest.core.designsystem.component.LinkNestGradientBackground
+import com.linknest.core.designsystem.labelResource
 import com.linknest.core.model.HealthStatus
 import com.linknest.core.model.TileDensityMode
 
@@ -347,7 +349,7 @@ private fun SettingsScreen(
                                             Text(item.normalizedUrl, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         }
                                         Text(
-                                            text = item.status.displayName,
+                                            text = stringResource(item.status.labelResource),
                                             style = MaterialTheme.typography.labelMedium,
                                             color = when (item.status) {
                                                 HealthStatus.OK -> Color(0xFF4CAF50)
@@ -395,7 +397,11 @@ private fun BackupRestorePanel(
         uiState.stagedInfo?.let { info ->
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = stringResource(R.string.settings_last_export_summary, info.dateLabel, info.typeLabel, info.sizeLabel),
+                text = stringResource(
+                    R.string.settings_last_export_summary,
+                    info.modifiedAtMillis.formatTimestamp(),
+                    Formatter.formatShortFileSize(LocalContext.current, info.sizeBytes),
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -498,7 +504,7 @@ private fun BackupRestorePanel(
                     enabled = !uiState.isBackupBusy,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(stringResource(R.string.settings_preview_recovery, info.dateLabel))
+                    Text(stringResource(R.string.settings_preview_recovery, info.modifiedAtMillis.formatTimestamp()))
                 }
             }
             if (uiState.hasStagedBackup) {
@@ -509,7 +515,7 @@ private fun BackupRestorePanel(
                 ) {
                     Icon(Icons.Rounded.Download, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.padding(start = 6.dp))
-                    Text(stringResource(R.string.settings_import_last_export, uiState.stagedInfo?.let { stringResource(R.string.settings_parenthesized_date, it.dateLabel) }.orEmpty()))
+                    Text(stringResource(R.string.settings_import_last_export, uiState.stagedInfo?.let { stringResource(R.string.settings_parenthesized_date, it.modifiedAtMillis.formatTimestamp()) }.orEmpty()))
                 }
             }
             OutlinedButton(

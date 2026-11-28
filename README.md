@@ -46,8 +46,8 @@ It is built as a modular offline-first project with Jetpack Compose, Room, DataS
 - Android Studio with a valid Android SDK installation
 - JetBrains JDK 21 for the Gradle daemon (Java bytecode target 17)
 - Android `minSdk = 26`
-- Android `targetSdk = 36`
-- Android `compileSdk = 36`
+- Android `targetSdk = 37`
+- Android `compileSdk = 37` with minor API level 1
 
 ## Project Structure
 

@@ -100,7 +100,7 @@ class BackupProviderTest {
         override fun queryDocument(documentId: String, projection: Array<out String>?): Cursor = MatrixCursor(arrayOf(
             DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_MIME_TYPE,
             DocumentsContract.Document.COLUMN_DISPLAY_NAME, DocumentsContract.Document.COLUMN_FLAGS,
-        )).apply { addRow(arrayOf(documentId, "application/json", documentId, 0)) }
+        )).apply { addRow(arrayOf<Any>(documentId, "application/json", documentId, 0)) }
         override fun queryChildDocuments(parentDocumentId: String, projection: Array<out String>?, sortOrder: String?): Cursor =
             MatrixCursor(arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID))
         override fun isChildDocument(parentDocumentId: String, documentId: String) = true
